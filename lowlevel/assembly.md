@@ -38,14 +38,6 @@ objdump -sj .data helloWorld    # .data section
 | Current/Top Stack Pointer     | rsp     | esp    | sp     | spl
 | Instruction Pointer           | rip     | eip    | ip     | ipl
 
-## GDB
-
-```
-info functions
-info variables
-registers
-```
-
 ## Assembly instructions
 
 
