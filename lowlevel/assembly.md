@@ -20,7 +20,7 @@ objdump -M intel -d helloWorld  # .text section
 objdump -sj .data helloWorld    # .data section
 ```
 
-### Registers
+## Registers
 
 | Register Description          |  64-bit | 32-bit | 16-bit | 8-bit |
 | ----------------------------- | ------- | ------ | ------ | ----- |
@@ -81,3 +81,92 @@ objdump -sj .data helloWorld    # .data section
 | `ret`                                   | pop the address at rsp into rip, then jump to it                                          | `ret`
 
 
+## The Stack
+
+Remember that a program receives its Virtual Memory and it has the following segments of memory:
+
+<img src="fig/memory_segments.png" alt="Description" width="400" height="400">
+
+The stack is a segment of memory allocated for the functions and their dynamic variables. It has a Last-in First-out (LIFO) data structure, which means that we push data into the stack, and only can pop the last element pushed.
+
+The `$rsp` register always points to the top of the stack. This means that once we pop an element, it will pop the value that `$rsp` was pointing to, and then `$rsp` will be added because we free the memory just popped. On the other hand, when we push an element, the value of `$rsp` will subtracted because we need to allocate memory to the stack.
+
+| Instruction                             | Description                                                                               | Example
+| --------------------------------------- | ----------------------------------------------------------------------------------------- | -------
+| push                                    | Copies the specified register/address to the top of the stack 	                          | push rax
+| pop                                     | Moves the item at the top of the stack to the specified register/address 	              | pop rax
+
+To save our registers `rax` and `rbx` to use a function, we push them into the stack and, after the function call, we pop them in reverse order.
+```asm
+global  _start
+
+section .text
+_start:
+    xor rax, rax    ; initialize rax to 0
+    xor rbx, rbx    ; initialize rbx to 0
+    inc rbx         ; increment rbx to 1
+    push rax        ; push registers to stack
+    push rbx
+    ; call function
+    pop rbx         ; restore registers from stack
+    pop rax
+...SNIP...
+```
+
+
+## Syscalls
+
+A syscall is like a globally available function that the Operating System Kernel provides to us. The available syscalls can be found in files like `unistd_64.h`. If we want info on a syscall, we can issue the command `man 2 write` for example on the `write` syscall.
+
+To call a syscall, we have to:
+
+1. Save registers to stack
+
+2. Set its syscall number in rax
+
+3. Set its arguments in the registers
+
+4. Use the syscall assembly instruction to call it
+
+The convention on which registers to use for a syscall is on the following table:
+
+| Instruction                             | Description
+| --------------------------------------- | -----------------------------------------------------------------------------------------
+| Description                             | 64-bit Register
+| Syscall Number/Return value             | rax
+| Callee Saved                            | rbx
+| 1st arg                                 | rdi
+| 2nd arg                                 | rsi
+| 3rd arg                                 | rdx
+| 4th arg                                 | rcx
+| 5th arg                                 | r8
+| 6th arg                                 | r9
+
+We have a register for the first 6 arguments. Any additional argument can be stored in the stack (though not many syscall use more than 6).
+
+Going back to the `write` syscall, we should pass `fd`, `pointer`and `length`.
+```asm
+global  _start
+
+section .data
+    message db "Fibonacci Sequence:", 0x0a  ; 0x0a is the '\n'
+
+section .text
+_start:
+    mov rax, 1       ; rax: syscall number 1 (write)
+    mov rdi, 1       ; rdi: fd 1 for stdout (0 - stdin, 1 - stdout, 2 - stderr)
+    mov rsi,message  ; rsi: pointer to message
+    mov rdx, 20      ; rdx: print length of 20 bytes
+    syscall
+...SNIP...
+```
+
+Whenever our program finishes executing, it exits with a segmentation fault. This is because we are ending our program abruptly, without going through the proper procedure of exiting programs in Linux, by calling the `exit syscall` and passing an exit code.
+
+Our `exit syscall` should be as follows for normal execution:
+```asm
+    mov rax, 60
+    mov rdi, 0      ; return 0: no error
+    syscall
+```
+<++>

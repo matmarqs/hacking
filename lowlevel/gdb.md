@@ -110,3 +110,13 @@ The memory of a program is divided into segments, which are organized as in the 
 | Stack   | Function context (automatic variables)
 
 <img src="fig/memory_segments.png" alt="Description" width="400" height="400">
+
+
+## Debugging PIE (Position Independent Executables)
+
+Use the `entry-break` function from `gef`.
+```bash
+entry-break               -- Tries to find best entry point and sets a temporary breakpoint on it. The command will test for
+                             well-known symbols for entry points, such as `main`, `_main`, `__libc_start_main`, etc. defined by
+                             the setting `entrypoint_symbols`. (alias: start)
+```
