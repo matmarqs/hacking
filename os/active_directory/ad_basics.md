@@ -971,3 +971,64 @@ It is possible to change the default refresh interval within Group Policy itself
 Below is an example of a GPO attack path identified using the **BloodHound** tool. This example shows that the **Domain Users** group can modify the **Disconnect Idle RDP** GPO due to nested group membership. In this case, we would next look to see which OUs this GPO applies to and if we can leverage these rights to gain control over a high-value user (administrator or Domain Admin) or computer (server, DC, or critical host) and move laterally to escalate privileges within the domain.
 
 ![](fig/bh_gpo.png)
+
+## AD Lab 1
+
+Do the following AD administrative tasks:
+
+* Add a few new hires into AD
+
+* Remove inactive users and computer objects
+
+* Unlock Adam Masters' account
+
+* Create a new security group for the new hires analysts, a new OU for the group and their corresponding PCs
+
+* Add the computers to the domain. Validate that their objects are in the correct OU
+
+* Create and apply a new Group Policy duplicated from another already in GPMC and modify it for the Analyst Users.
+
+* Validate the DNS records for the Host (`sharepoint2.inlanefreight.local`)
+
+> Note: Attempt to complete the challenges on your own. If you get stuck, the Solutions dropdown below each task can help you.
+
+### Task 1
+
+Users to add:
+
+* Andromeda Cepheus
+* Orion Starchaser
+* Artemis Callisto
+
+
+Each user should have the following attributes set, along with their name:
+
+* full name
+* email (first-initial.lastname@inlanefreight.local) ( ex. j.smith@inlanefreight.local )
+* display name
+* User must change password at next logon
+
+```powershell
+New-ADUser -Name "Andromeda Cepheus" -EmailAddress "a.cepheus@inlanefreight.local" -DisplayName "Andromeda Cepheus" -ChangePasswordAtLogon $true
+New-ADUser -Name "Orion Starchaser" -EmailAddress "o.starchaser@inlanefreight.local" -DisplayName "Orion Starchaser" -ChangePasswordAtLogon $true
+New-ADUser -Name "Artemis Callisto" -EmailAddress "a.callisto@inlanefreight.local" -DisplayName "Artemis Callisto" -ChangePasswordAtLogon $true
+```
+
+```powershell
+PS C:\Windows\system32> Get-ADUser -Filter "Name -eq 'Mike O''Hare'" | Remove-ADUser
+
+Confirm
+Are you sure you want to perform this action?
+Performing the operation "Remove" on target "CN=Mike
+O'Hare,OU=Audit,OU=Financial-LON,OU=Employees,OU=Corp,DC=INLANEFREIGHT,DC=LOCAL".
+[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [S] Suspend  [?] Help (default is "Y"): Y
+
+PS C:\Windows\system32> Get-ADUser -Filter "Name -eq 'Paul Valencia'" | Remove-ADUser
+
+Confirm
+Are you sure you want to perform this action?
+Performing the operation "Remove" on target "CN=Paul
+Valencia,OU=Sales,OU=HQ-NYC,OU=Employees,OU=Corp,DC=INLANEFREIGHT,DC=LOCAL".
+[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [S] Suspend  [?] Help (default is "Y"): Y
+```
+
