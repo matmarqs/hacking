@@ -1,4 +1,6 @@
-### CMD
+# Windows Command-Line
+
+## CMD
 
 `find / -name cmd.exe 2>/dev/null`:
 ```powershell
@@ -50,3 +52,10 @@ copy    # is like cp
 move    # is like mv
 whoami
 ```
+
+
+### Gathering System Information
+
+Below is a chart that outlines the main types of information to be aware.
+
+<img src="fig/InformationTypesChart_Updated.png" style="background-color: #1a2332;">
