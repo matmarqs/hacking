@@ -421,4 +421,39 @@ Environment variables on Windows are called like so:
 ```
 %SUPER_IMPORTANT_VARIABLE%
 ```
-<++>
+
+* Showcasing environment variables
+```cmd
+echo %SUPER_IMPORTANT_VARIABLE%
+```
+
+* Set local environment variable (Current command line session)
+```cmd
+set SECRET=HTB{5UP3r_53Cr37_V4r14813}
+```
+
+* Set global environment variable (Available on a next session)
+```cmd
+setx SECRET HTB{5UP3r_53Cr37_V4r14813}
+```
+
+* Scope of variables
+
+Scope | Permissions Required to Access | Registry Location
+----- | ------------------------------ | -----------------
+`System (Machine)` | Local Administrator or Domain Administrator | `HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment`
+`User` | Current Active User, Local Administrator, or Domain Administrator | `HKEY_CURRENT_USER\Environment`
+`Process` | Current Child Process, Parent Process, or Current Active User | `None (Stored in Process Memory)`
+
+
+* Important environment variables
+
+Variable Name | Description
+------------- | -----------
+%PATH% | Specifies a set of directories(locations) where executable programs are located.
+%OS% | The current operating system on the user's workstation.
+%SYSTEMROOT% | Expands to C:\Windows. A system-defined read-only variable containing the Windows system folder. Anything Windows considers important to its core functionality is found here, including important data, core system binaries, and configuration files.
+%LOGONSERVER% | Provides us with the login server for the currently active user followed by the machine's hostname. We can use this information to know if a machine is joined to a domain or workgroup.
+%USERPROFILE% | Provides us with the location of the currently active user's home directory. Expands to C:\Users\{username}.
+%ProgramFiles% | Equivalent of C:\Program Files. This location is where all the programs are installed on an x64 based system.
+%ProgramFiles(x86)% | Equivalent of C:\Program Files (x86). This location is where all 32-bit programs running under WOW64 are installed. Note that this variable is only accessible on a 64-bit host. It can be used to indicate what kind of host we are interacting with. (x86 vs. x64 architecture)
