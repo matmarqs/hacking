@@ -1666,3 +1666,1413 @@ Below we will quickly list a few PowerShell modules and projects we, as penetrat
     
 
 * * *
+
+User and Group Management
+=========================
+
+* * *
+
+As a system administrator, user and group management is a key skill as our users are often our main asset to manage and, usually, an organization's largest attack vector. As pentesters, understanding how to enumerate, interpret, and take advantage of users and groups is one of the easiest ways to gain access and elevate our privileges during a pentest engagement. This section will cover what users and groups are, how to manage them with PowerShell, and briefly introduce the concept of Active Directory domains and domain users.
+
+* * *
+
+What are User Accounts?
+-----------------------
+
+User accounts are a way for personnel to access and use a host's resources. In certain circumstances, the system will also utilize a specially provisioned user account to perform actions. When thinking about accounts, we typically run into four different types:
+
+*   Service Accounts
+*   Built-in accounts
+*   Local users
+*   Domain users
+
+### Default Local User Accounts
+
+Several accounts are created in every instance of Windows as the OS is installed to help with host management and basic usage. Below is a list of the standard built-in accounts.
+
+#### Built-In Accounts
+
+**Account**
+
+**Description**
+
+`Administrator`
+
+This account is used to accomplish administrative tasks on the local host.
+
+`Default Account`
+
+The default account is used by the system for running multi-user auth apps like the Xbox utility.
+
+`Guest Account`
+
+This account is a limited rights account that allows users without a normal user account to access the host. It is disabled by default and should stay that way.
+
+`WDAGUtility Account`
+
+This account is in place for the Defender Application Guard, which can sandbox application sessions.
+
+* * *
+
+Brief Intro to Active Directory
+-------------------------------
+
+In a nutshell, `Active Directory` (AD) is a directory service for Windows environments that provides a central point of management for `users`, computers, `groups`, network devices, `file shares`, group policies, `devices`, and trusts with other organizations. Think of it as the gatekeeper for an enterprise environment. Anyone who is a part of the domain can access resources freely, while anyone who is not is denied access to those same resources or, at a minimum, stuck waiting in the visitors center.
+
+Within this section, we care about AD in the context of users and groups. We can administer them from PowerShell on `any domain joined host` utilizing the `ActiveDirectory` Module. Taking a deep dive into Active Directory would take more than one section, so we will not try here. To learn more about AD, you should check out the [Introduction to Active Directory module](https://academy.hackthebox.com/module/details/74).
+
+### Local vs. Domain Joined Users
+
+`How are they different?`
+
+`Domain` users differ from `local` users in that they are granted rights from the domain to access resources such as file servers, printers, intranet hosts, and other objects based on user and group membership. Domain user accounts can log in to any host in the domain, while the local user only has permission to access the specific host they were created on.
+
+It is worth looking through the documentation on [accounts](https://learn.microsoft.com/en-us/windows/security/identity-protection/access-control/local-accounts) to understand better how the various accounts work together on an individual Windows system and across a domain network. Take some time to look them over and understand the nuances between them. Understanding their uses and the utility of each type of account can make or break a pentesters attempt at privileged access or lateral movement during a penetration test.
+
+### What Are User Groups?
+
+Groups are a way to sort user accounts logically and, in doing so, provide granular permissions and access to resources without having to manage each user manually. For example, we could restrict access to a specific directory or share so that only users who need access can view the files. On a singular host, this does not mean much to us. However, logical grouping is essential to maintain a proper security posture within a domain of hundreds, if not thousands, of users. From a domain perspective, we have several different types of groups that can hold not only users but end devices like PCs, printers, and even other groups. This concept is too deep of a dive for this module. However, we will talk about how to manage groups for now. If you wish to know more and get a deep dive into Active Directory and how it utilizes groups to maintain security, check out this [module](https://academy.hackthebox.com/module/details/74).
+
+#### Get-LocalGroup
+
+User and Group Management
+
+    PS C:\htb> get-localgroup
+    
+    Name                                Description
+    ----                                -----------
+    __vmware__                          VMware User Group
+    Access Control Assistance Operators Members of this group can remotely query authorization attributes and permission...
+    Administrators                      Administrators have complete and unrestricted access to the computer/domain
+    Backup Operators                    Backup Operators can override security restrictions for the sole purpose of back...
+    Cryptographic Operators             Members are authorized to perform cryptographic operations.
+    Device Owners                       Members of this group can change system-wide settings.
+    Distributed COM Users               Members are allowed to launch, activate and use Distributed COM objects on this ...
+    Event Log Readers                   Members of this group can read event logs from local machine
+    Guests                              Guests have the same access as members of the Users group by default, except for...
+    Hyper-V Administrators              Members of this group have complete and unrestricted access to all features of H...
+    IIS_IUSRS                           Built-in group used by Internet Information Services.
+    Network Configuration Operators     Members in this group can have some administrative privileges to manage configur...
+    Performance Log Users               Members of this group may schedule logging of performance counters, enable trace...
+    Performance Monitor Users           Members of this group can access performance counter data locally and remotely
+    Power Users                         Power Users are included for backwards compatibility and possess limited adminis...
+    Remote Desktop Users                Members in this group are granted the right to logon remotely
+    Remote Management Users             Members of this group can access WMI resources over management protocols (such a...
+    Replicator                          Supports file replication in a domain
+    System Managed Accounts Group       Members of this group are managed by the system.
+    Users                               Users are prevented from making accidental or intentional system-wide changes an...  
+    
+    
+
+Above is an example of the local groups to a standalone host. We can see there are groups for simple things like Administrators and guest accounts, but also groups for specific roles like administrators for virtualization applications, remote users, etc. Let us interact with users and groups now that we understand them.
+
+Adding/Removing/Editing User Accounts & Groups
+----------------------------------------------
+
+Like most other things in PowerShell, we use the `get`, `new`, and `set` verbs to find, create and modify users and groups. If dealing with local users and groups, `localuser & localgroup` can accomplish this. For domain assets, `aduser & adgroup` does the trick. If we were not sure, we could always use the `Get-Command *user*` cmdlet to see what we have access to. Let us give a few of them a try.
+
+#### Identifying Local Users
+
+User and Group Management
+
+    PS C:\htb> Get-LocalUser  
+      
+    Name               Enabled Description
+    ----               ------- -----------
+    Administrator      False   Built-in account for administering the computer/domain
+    DefaultAccount     False   A user account managed by the system.
+    DLarusso           True    High kick specialist.
+    Guest              False   Built-in account for guest access to the computer/domain
+    sshd               True
+    WDAGUtilityAccount False   A user account managed and used by the system for Windows Defender A...
+    
+
+`Get-LocalUser` will display the users on our host. These users only have access to this particular host. Let us say that we want to create a new local user named `JLawrence`. We can accomplish the task using `New-LocalUser`. If we are unsure of the proper syntax, please do not forget about the `Get-Help` Command. When creating a new local user, the only real requirement from a syntax perspective is to enter a `name` and specify a `password` (or `-NoPassword`). All other settings, such as a description or account expiration, are optional.
+
+#### Creating A New User
+
+User and Group Management
+
+    PS C:\htb>  New-LocalUser -Name "JLawrence" -NoPassword
+    
+    Name      Enabled Description
+    ----      ------- -----------
+    JLawrence True
+    
+
+Above, we created the user `JLawrence` and did not set a password. So this account is active and can be logged in without a password. Depending on the version of Windows we are using, by not setting a Password, we are flagging to windows that this is a Microsoft live account, and it attempts to login in that manner instead of using a local password.
+
+If we wish to modify a user, we could use the `Set-LocalUser` cmdlet. For this example, we will modify `JLawrence` and set a password and description on his account.
+
+#### Modifying a User
+
+User and Group Management
+
+    PS C:\htb> $Password = Read-Host -AsSecureString
+    ****************
+    PS C:\htb> Set-LocalUser -Name "JLawrence" -Password $Password -Description "CEO EagleFang"
+    PS C:\htb> Get-LocalUser  
+    
+    Name               Enabled Description
+    ----               ------- -----------
+    Administrator      False   Built-in account for administering the computer/domain
+    DefaultAccount     False   A user account managed by the system.
+    demo               True
+    Guest              False   Built-in account for guest access to the computer/domain
+    JLawrence          True    CEO EagleFang
+    
+
+As for making and modifying users, it is as simple as what we see above. Now, let us move on to checking out groups. If it feels like a bit of an echo...well, it is. The commands are similar in use.
+
+#### Get-LocalGroup
+
+User and Group Management
+
+    PS C:\htb> Get-LocalGroup  
+    
+    Name                                Description
+    ----                                -----------
+    Access Control Assistance Operators Members of this group can remotely query authorization attr...
+    Administrators                      Administrators have complete and unrestricted access to the...
+    Backup Operators                    Backup Operators can override security restrictions for the...
+    Cryptographic Operators             Members are authorized to perform cryptographic operations.
+    Device Owners                       Members of this group can change system-wide settings.
+    Distributed COM Users               Members are allowed to launch, activate and use Distributed...
+    Event Log Readers                   Members of this group can read event logs from local machine
+    Guests                              Guests have the same access as members of the Users group b...
+    Hyper-V Administrators              Members of this group have complete and unrestricted access...
+    IIS_IUSRS                           Built-in group used by Internet Information Services.
+    Network Configuration Operators     Members in this group can have some administrative privileg...
+    Performance Log Users               Members of this group may schedule logging of performance c...
+    Performance Monitor Users           Members of this group can access performance counter data l...
+    Power Users                         Power Users are included for backwards compatibility and po...
+    Remote Desktop Users                Members in this group are granted the right to logon remotely
+    Remote Management Users             Members of this group can access WMI resources over managem...
+    Replicator                          Supports file replication in a domain
+    System Managed Accounts Group       Members of this group are managed by the system.
+    Users                               Users are prevented from making accidental or intentional s...
+    
+    PS C:\Windows\system32> Get-LocalGroupMember -Name "Users"
+    
+    ObjectClass Name                             PrincipalSource
+    ----------- ----                             ---------------
+    User        DESKTOP-B3MFM77\demo             Local
+    User        DESKTOP-B3MFM77\JLawrence        Local
+    Group       NT AUTHORITY\Authenticated Users Unknown
+    Group       NT AUTHORITY\INTERACTIVE         Unknown
+    
+
+In the output above, we ran the `Get-LocalGroup` cmdlet to get a printout of each group on the host. In the second command, we decided to inspect the `Users` group and see who is a member of said group. We did this with the `Get-LocalGroupMember` command. Now, if we wish to add another group or user to a group, we can use the `Add-LocalGroupMember` command. We will add `JLawrence` to the `Remote Desktop Users` group in the example below.
+
+#### Adding a Member To a Group
+
+User and Group Management
+
+    PS C:\htb> Add-LocalGroupMember -Group "Remote Desktop Users" -Member "JLawrence"
+    PS C:\htb> Get-LocalGroupMember -Name "Remote Desktop Users" 
+    
+    ObjectClass Name                      PrincipalSource
+    ----------- ----                      ---------------
+    User        DESKTOP-B3MFM77\JLawrence Local
+    
+
+After running the command, we checked the group membership and saw that our user was indeed added to the Remote Desktop Users group. Maintaining local users and groups is simple and does not require external modules. Managing Active Directory Users and Groups requires a bit more work.
+
+### Managing Domain Users and Groups
+
+Before we can access the cmdlets we need and work with Active Directory, we must install the `ActiveDirectory` PowerShell Module. If you installed the AdminToolbox, the AD module might already be on your host. If not, we can quickly grab the AD modules and get to work. One requirement is to have the optional feature `Remote System Administration Tools` installed. This feature is the only way to get the official ActiveDirectory PowerShell module. The edition in AdminToolbox and other Modules is repackaged, so use caution.
+
+#### Installing RSAT
+
+User and Group Management
+
+    PS C:\htb> Get-WindowsCapability -Name RSAT* -Online | Add-WindowsCapability -Online
+    
+    Path          :  
+    Online        : True  
+    RestartNeeded : False  
+    
+    
+
+The above command will install `ALL` RSAT features in the Microsoft Catalog. If we wish to stay lightweight, we can install the package named `Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.0`. Now we should have the ActiveDirectory module installed. Let us check.
+
+#### Locating The AD Module
+
+User and Group Management
+
+    PS C:\htb> Get-Module -Name ActiveDirectory -ListAvailable 
+    
+        Directory: C:\Windows\system32\WindowsPowerShell\v1.0\Modules
+    
+    
+    ModuleType Version    Name                                ExportedCommands
+    ---------- -------    ----                                ----------------
+    Manifest   1.0.1.0    ActiveDirectory                     {Add-ADCentralAccessPolicyMember, Add-ADComputerServiceAccount, Add-ADDomainControllerPasswordReplicationPolicy, Add-A...
+    
+
+Nice. Now that we have the module, we can get started with AD `User` and `Group` management. The easiest way to locate a specific user is by searching with the `Get-ADUser` cmdlet.
+
+#### Get-ADUser
+
+User and Group Management
+
+    PS C:\htb> Get-ADUser -Filter *
+    
+    DistinguishedName : CN=user14,CN=Users,DC=greenhorn,DC=corp
+    Enabled           : True
+    GivenName         :
+    Name              : user14
+    ObjectClass       : user
+    ObjectGUID        : bef9787d-2716-4dc9-8e8f-f8037a72c3d9
+    SamAccountName    : user14
+    SID               : S-1-5-21-1480833693-1324064541-2711030367-1110
+    Surname           :
+    UserPrincipalName :
+    
+    DistinguishedName : CN=sshd,CN=Users,DC=greenhorn,DC=corp
+    Enabled           : True
+    GivenName         :
+    Name              : sshd
+    ObjectClass       : user
+    ObjectGUID        : 7a324e98-00e4-480b-8a1a-fa465d558063
+    SamAccountName    : sshd
+    SID               : S-1-5-21-1480833693-1324064541-2711030367-1112
+    Surname           :
+    UserPrincipalName :
+    
+    DistinguishedName : CN=TSilver,CN=Users,DC=greenhorn,DC=corp
+    Enabled           : True
+    GivenName         :
+    Name              : TSilver
+    ObjectClass       : user
+    ObjectGUID        : a19a6c8a-000a-4cbf-aa14-0c7fca643c37
+    SamAccountName    : TSilver
+    SID               : S-1-5-21-1480833693-1324064541-2711030367-1602
+    Surname           :
+    UserPrincipalName :  
+    
+    <SNIP>
+    
+
+The parameter `-Filter *` lets us grab all users within Active Directory. Depending on our organization's size, this could produce a ton of output. We can use the `-Identity` parameter to perform a more specific search for a user by `distinguished name, GUID, the objectSid, or SamAccountName`. Do not worry if these options seem like gibberish to you; that is all right. The specifics of these are not important right now; for more reading on the topic, check out [this article](https://learn.microsoft.com/en-us/windows/win32/ad/naming-properties) or the [Intro To Active Directory](https://academy.hackthebox.com/course/preview/introduction-to-active-directory) module. We are going to search for the user `TSilver` now.
+
+#### Get a Specific User
+
+User and Group Management
+
+    PS C:\htb>  Get-ADUser -Identity TSilver
+    
+    
+    DistinguishedName : CN=TSilver,CN=Users,DC=greenhorn,DC=corp
+    Enabled           : True
+    GivenName         :
+    Name              : TSilver
+    ObjectClass       : user
+    ObjectGUID        : a19a6c8a-000a-4cbf-aa14-0c7fca643c37
+    SamAccountName    : TSilver
+    SID               : S-1-5-21-1480833693-1324064541-2711030367-1602
+    Surname           :
+    UserPrincipalName :
+      
+    
+
+We can see from the output several pieces of information about the user, including:
+
+*   `Object Class`: which specifies if the object is a user, computer, or another type of object.
+*   `DistinguishedName`: Specifies the object's relative path within the AD schema.
+*   `Enabled`: Tells us if the user is active and can log in.
+*   `SamAccountName`: The representation of the username used to log into the ActiveDirectory hosts.
+*   `ObjectGUID`: Is the unique identifier of the user object.
+
+Users have many different attributes ( not all shown here ) and can all be used to identify and group them. We could also use these to filter specific attributes. For example, let us filter the user's `Email address`.
+
+#### Searching On An Attribute
+
+User and Group Management
+
+    PS C:\htb> Get-ADUser -Filter {EmailAddress -like '*greenhorn.corp'}
+    
+    
+    DistinguishedName : CN=TSilver,CN=Users,DC=greenhorn,DC=corp
+    Enabled           : True
+    GivenName         :
+    Name              : TSilver
+    ObjectClass       : user
+    ObjectGUID        : a19a6c8a-000a-4cbf-aa14-0c7fca643c37
+    SamAccountName    : TSilver
+    SID               : S-1-5-21-1480833693-1324064541-2711030367-1602
+    Surname           :
+    UserPrincipalName :
+    
+
+In our output, we can see that we only had one result for a user with an email address matching our naming context `*greenhorn.corp`. This is just one example of attributes we can filter on. For a more detailed list, check out this [Technet Article](https://social.technet.microsoft.com/wiki/contents/articles/12037.active-directory-get-aduser-default-and-extended-properties.aspx), which covers the default and extended user object properties.
+
+We need to create a new user for an employee named `Mori Tanaka` who just joined Greenhorn. Let us give the New-ADUser cmdlet a try.
+
+#### New ADUser
+
+User and Group Management
+
+    PS C:\htb> New-ADUser -Name "MTanaka" -Surname "Tanaka" -GivenName "Mori" -Office "Security" -OtherAttributes @{'title'="Sensei";'mail'="MTanaka@greenhorn.corp"} -Accountpassword (Read-Host -AsSecureString "AccountPassword") -Enabled $true 
+    
+    AccountPassword: ****************
+    PS C:\htb> Get-ADUser -Identity MTanaka -Properties * | Format-Table Name,Enabled,GivenName,Surname,Title,Office,Mail
+    
+    Name    Enabled GivenName Surname Title  Office   Mail
+    ----    ------- --------- ------- -----  ------   ----
+    MTanaka    True Mori      Tanaka  Sensei Security MTanaka@greenhorn.corp
+    
+
+Ok, a lot is going on here. It may look daunting but let us dissect it. The `first` portion of the output above is creating our user:
+
+*   `New-ADUser -Name "MTanaka"` : We issue the `New-ADUser` command and set the user's SamAccountName to `MTanaka`.
+*   `-Surname "Tanaka" -GivenName "Mori"`: This portion sets our user's `Lastname` and `Firstname`.
+*   `-Office "Security"`: Sets the extended property of `Office` to `Security`.
+*   `-OtherAttributes @{'title'="Sensei";'mail'="MTanaka@greenhorn.corp"}`: Here we set other extended attributes such as `title` and `Email-Address`.
+*   `-Accountpassword (Read-Host -AsSecureString "AccountPassword")`: With this portion, we set the user's `password` by having the shell prompt us to enter a new password. (we can see it in the line below with the stars)
+*   `-Enabled $true`: We are enabling the account for use. The user could not log in if this was set to `\$False`.
+
+The `second` is validating that the user we created and the properties we set exist:
+
+*   `Get-ADUser -Identity MTanaka -Properties *`: Here, we are searching for the user's properties `MTanaka`.
+*   `|` : This is the Pipe symbol. It will be explored more in another section, but for now, it takes our `output` from `Get-ADUser` and sends it into the following command.
+*   `Format-Table Name,Enabled,GivenName,Surname,Title,Office,Mail`: Here, we tell PowerShell to `Format` our results as a `table` including the default and extended properties listed.
+
+Seeing the commands broken down like this helps demystify the strings. Now, what if we need to modify a user? `Set-ADUser` is our ticket. Many of the filters we looked at earlier apply here as well. We can change or set any of the attributes that were listed. For this example, let us add a `Description` to Mr. Tanaka.
+
+#### Changing a Users Attributes
+
+User and Group Management
+
+    PS C:\htb> Set-ADUser -Identity MTanaka -Description " Sensei to Security Analyst's Rocky, Colt, and Tum-Tum"  
+    
+    PS C:\htb> Get-ADUser -Identity MTanaka -Property Description
+    
+    
+    Description       :  Sensei to Security Analyst's Rocky, Colt, and Tum-Tum
+    DistinguishedName : CN=MTanaka,CN=Users,DC=greenhorn,DC=corp
+    Enabled           : True
+    GivenName         : Mori
+    Name              : MTanaka
+    ObjectClass       : user
+    ObjectGUID        : c19e402d-b002-4ca0-b5ac-59d416166b3a
+    SamAccountName    : MTanaka
+    SID               : S-1-5-21-1480833693-1324064541-2711030367-1603
+    Surname           : Tanaka
+    UserPrincipalName :
+    
+
+Querying AD, we can see that the `description` we set has been added to the attributes of Mr. Tanaka. User and group management is a common task we may find ourselves doing as sysadmins. However, why should we care about it as a `pentester`?
+
+Why is Enumerating Users & Groups Important?
+--------------------------------------------
+
+Users and groups provide a wealth of opportunities regarding Pentesting a Windows environment. We will often see users misconfigured. They may be given excessive permissions, added to unnecessary groups, or have weak/no passwords set. Groups can be equally as valuable. Often groups will have nested membership, allowing users to gain privileges they may not need. These misconfigurations can be easily found and visualized with Tools like [Bloodhound](https://github.com/BloodHoundAD/BloodHound). For a detailed look at enumerating Users and Groups, check out the [Windows Privilege Escalation](https://academy.hackthebox.com/course/preview/windows-privilege-escalation) module.
+
+* * *
+
+Moving On
+---------
+
+Now that we have the User and Group management down let's move on to working with files, folders, and other objects with PowerShell.
+
+VPN Servers
+
+Warning: Each time you "Switch", your connection keys are regenerated and you must re-download your VPN connection file.
+
+All VM instances associated with the old VPN Server will be terminated when switching to a new VPN server.  
+Existing PwnBox instances will automatically switch to the new VPN server.
+
+Switching VPN...
+
+US Academy 2 US Academy 4 US Academy 3 US Academy 6 EU Academy 6 US Academy 5 EU Academy 1 EU Academy 4 US Academy 1 EU Academy 5 EU Academy 3 EU Academy 2
+
+US Academy 3
+
+medium Load
+
+PROTOCOL
+
+ UDP 1337
+
+ TCP 443
+
+DOWNLOAD VPN CONNECTION FILE
+
+Instance is starting...
+
+Terminating instance...
+
+Start Instance
+
+/ 1 spawns left
+
+ Full Screen  Terminate  Reset
+
+Life Left: m
+
+Waiting to start...
+
+ Enable step-by-step solutions for all questions ![sparkles-icon-decoration](/images/sparkles-solid.svg)
+
+#### Questions
+
+Answer the question(s) below to complete this Section and earn cubes!
+
+Click here to spawn the target system!
+
+Target(s): 10.129.203.105 (ACADEMY-ICL-WIN11)  
+
+Life Left: 108 minute(s)Terminate
+
+Cheat Sheet
+
+[
+
+Download VPN Connection File
+
+](https://academy.hackthebox.com/vpn/key)
+
+\+ 0 What resource can provide Windows environments with directory services to manage users, computers, and more? (full name not abbreviation)
+
+Submit
+
+Hint
+
+\+ 0 What PowerShell Cmdlet will display all LOCAL users on a host?
+
+Submit
+
+Hint
+
+SSH to 10.129.203.105 (ACADEMY-ICL-WIN11) with user "mtanaka" and password "HTB\_@cademy\_stdnt!"
+
+\+ 0 Connect to the target host and search for a domain user with the given name of Robert. What is this users Surname?
+
+Submit
+
+Hint
+
+[Previous](https://academy.hackthebox.com/module/167/section/1636)
+
+  
+
+Mark Complete & Next
+
+[Next](https://academy.hackthebox.com/module/167/section/1619)
+
+
+
+
+Working with Files and Directories - PowerShell
+===============================================
+
+* * *
+
+We already know how to navigate around the host and manage users and groups utilizing only PowerShell; now, it is time to explore files and directories. In this section, we will experiment with creating, modifying, and deleting files and directories, along with a quick introduction to file permissions and how to enumerate them. By now, we should be familiar with the `Get, Set, New` verbs, among others, so we will speed this up with our examples by combining several commands into a single shell session.
+
+* * *
+
+Creating/Moving/Deleting Files & Directories
+--------------------------------------------
+
+Many of the cmdlets we will discuss in this section can apply to working with files and folders, so we will combine some of our actions to work more efficiently (as any good pentester or sysadmin should strive to.). The table below lists the commonly used cmdlets used when dealing with objects in PowerShell.
+
+#### Common Commands Used for File & Folder Management
+
+**Command**
+
+**Alias**
+
+**Description**
+
+`Get-Item`
+
+gi
+
+Retrieve an object (could be a file, folder, registry object, etc.)
+
+`Get-ChildItem`
+
+ls / dir / gci
+
+Lists out the content of a folder or registry hive.
+
+`New-Item`
+
+md / mkdir / ni
+
+Create new objects. ( can be files, folders, symlinks, registry entries, and more)
+
+`Set-Item`
+
+si
+
+Modify the property values of an object.
+
+`Copy-Item`
+
+copy / cp / ci
+
+Make a duplicate of the item.
+
+`Rename-Item`
+
+ren / rni
+
+Changes the object name.
+
+`Remove-Item`
+
+rm / del / rmdir
+
+Deletes the object.
+
+`Get-Content`
+
+cat / type
+
+Displays the content within a file or object.
+
+`Add-Content`
+
+ac
+
+Append content to a file.
+
+`Set-Content`
+
+sc
+
+overwrite any content in a file with new data.
+
+`Clear-Content`
+
+clc
+
+Clear the content of the files without deleting the file itself.
+
+`Compare-Object`
+
+diff / compare
+
+Compare two or more objects against each other. This includes the object itself and the content within.
+
+**Scenario: Greenhorn's new Security Chief, Mr. Tanaka, has requested that a set of files and folders be created for him. He plans to use them for SOP documentation for the Security team. Since he just got host access, we have agreed to set the file & folder structure up for him. If you would like to follow along with the examples below, please feel free. For your practice, we removed the folders and files discussed below so you can take a turn recreating them.**
+
+First, we are going to start with the folder structure he requested. We are going to make three folders named :
+
+*   `SOPs`
+    *   `Physical Sec`
+    *   `Cyber Sec`
+    *   `Training`
+
+We will use the `Get-Item`, `Get-ChildItem`, and `New-Item` commands to create our folder structure. Let us get started. We first need to determine `where we are` in the host and then move to Mr. Tanaka's `Documents` folder.
+
+#### Finding Our Place
+
+Working with Files and Directories - PowerShell
+
+    PS C:\htb> Get-Location
+    
+    Path
+    ----
+    C:\Users\MTanaka
+    
+    PS C:\Users\MTanaka> cd Documents
+    PS C:\Users\MTanaka\Documents>
+    
+
+Now that we are in the correct directory, it's time to get to work. Next, we need to make the SOPs folder. The New-Item Cmdlet can be used to accomplish this.
+
+#### New-Item
+
+Working with Files and Directories - PowerShell
+
+    PS C:\Users\MTanaka\Documents>  new-item -name "SOPs" -type directory
+    
+    
+        Directory: C:\Users\MTanaka\Documents
+    
+    
+    Mode                 LastWriteTime         Length Name
+    ----                 -------------         ------ ----
+    d-----         10/5/2022  12:20 PM                SOPs
+    
+    
+
+Awesome. Our main directory exists now. Let us create our nested folders `Physical Sec, Cyber Sec, and Training`. We can utilize the same command from last time or the alias `mkdir`. First, we need to move into the `SOPs` Directory.
+
+#### Making More Directories
+
+Working with Files and Directories - PowerShell
+
+    PS C:\Users\MTanaka\Documents> cd SOPs 
+    
+    PS C:\Users\MTanaka\Documents\SOPs> mkdir "Physical Sec"
+    
+        Directory: C:\Users\MTanaka\Documents\SOPs
+    
+    
+    Mode                 LastWriteTime         Length Name
+    ----                 -------------         ------ ----
+    d-----         10/5/2022   4:30 PM                Physical Sec
+    
+    PS C:\Users\MTanaka\Documents\SOPs> mkdir "Cyber Sec"
+    
+        Directory: C:\Users\MTanaka\Documents\SOPs
+    
+    
+    Mode                 LastWriteTime         Length Name
+    ----                 -------------         ------ ----
+    d-----         10/5/2022   4:30 PM                Cyber Sec
+    
+    PS C:\Users\MTanaka\Documents\SOPs> mkdir "Training"
+    
+        Directory: C:\Users\MTanaka\Documents\SOPs
+    
+    
+    Mode                 LastWriteTime         Length Name
+    ----                 -------------         ------ ----
+    d-----         10/5/2022   4:31 PM                Training  
+    
+    PS C:\Users\MTanaka\Documents\SOPs> Get-ChildItem 
+    
+    Directory: C:\Users\MTanaka\Documents\SOPs
+    
+    
+    Mode                 LastWriteTime         Length Name
+    ----                 -------------         ------ ----
+    d-----        10/5/2022   9:08 AM                Cyber Sec
+    d-----        11/5/2022   9:09 AM                Physical Sec
+    d-----        11/5/2022   9:08 AM                Training
+    
+    
+
+Now that we have our directory structure in place. It's time to start populating the files required. Mr. Tanaka asked for a Markdown file in each folder like so:
+
+*   `SOPs` > ReadMe.md
+    *   `Physical Sec` > Physical-Sec-draft.md
+    *   `Cyber Sec` > Cyber-Sec-draft.md
+    *   `Training` > Employee-Training-draft.md
+
+In each file, he has requested this header at the top:
+
+*   Title: Insert Document Title Here
+*   Date: x/x/202x
+*   Author: MTanaka
+*   Version: 0.1 (Draft)
+
+We should be able to quickly knock this out using the `New-Item` cmdlet and the `Add-Content` cmdlet.
+
+#### Making Files
+
+Working with Files and Directories - PowerShell
+
+    PS C:\htb> PS C:\Users\MTanaka\Documents\SOPs> new-Item "Readme.md" -ItemType File
+    
+        Directory: C:\Users\MTanaka\Documents\SOPs
+    
+    Mode                 LastWriteTime         Length Name
+    ----                 -------------         ------ ----
+    -a----        11/10/2022   9:12 AM              0 Readme.md
+    
+    PS C:\Users\MTanaka\Documents\SOPs> cd '.\Physical Sec\'
+    PS C:\Users\MTanaka\Documents\SOPs\Physical Sec> ls
+    PS C:\Users\MTanaka\Documents\SOPs\Physical Sec> new-Item "Physical-Sec-draft.md" -ItemType File
+    
+        Directory: C:\Users\MTanaka\Documents\SOPs\Physical Sec
+    
+    Mode                 LastWriteTime         Length Name
+    ----                 -------------         ------ ----
+    -a----        11/10/2022   9:14 AM              0 Physical-Sec-draft.md
+    
+    PS C:\Users\MTanaka\Documents\SOPs\Physical Sec> cd ..
+    PS C:\Users\MTanaka\Documents\SOPs> cd '.\Cyber Sec\'
+    
+    PS C:\Users\MTanaka\Documents\SOPs\Cyber Sec> new-Item "Cyber-Sec-draft.md" -ItemType File
+    
+        Directory: C:\Users\MTanaka\Documents\SOPs\Cyber Sec
+    
+    Mode                 LastWriteTime         Length Name
+    ----                 -------------         ------ ----
+    -a----        11/10/2022   9:14 AM              0 Cyber-Sec-draft.md
+    
+    PS C:\Users\MTanaka\Documents\SOPs\Cyber Sec> cd ..
+    PS C:\Users\MTanaka\Documents\SOPs> cd .\Training\
+    PS C:\Users\MTanaka\Documents\SOPs\Training> ls
+    PS C:\Users\MTanaka\Documents\SOPs\Training> new-Item "Employee-Training-draft.md" -ItemType File
+    
+        Directory: C:\Users\MTanaka\Documents\SOPs\Training
+    
+    Mode                 LastWriteTime         Length Name
+    ----                 -------------         ------ ----
+    -a----        11/10/2022   9:15 AM              0 Employee-Training-draft.md
+    
+    PS C:\Users\MTanaka\Documents\SOPs\Training> cd ..
+    PS C:\Users\MTanaka\Documents\SOPs> tree /F
+    Folder PATH listing
+    Volume serial number is F684-763E
+    C:.
+    │   Readme.md
+    │
+    ├───Cyber Sec
+    │       Cyber-Sec-draft.md
+    │
+    ├───Physical Sec
+    │       Physical-Sec-draft.md
+    │
+    └───Training
+            Employee-Training-draft.md
+    
+
+Now that we have our files, we need to add content inside them. We can do so with the `Add-Content` cmdlet.
+
+#### Adding Content
+
+Working with Files and Directories - PowerShell
+
+    PS C:\htb> Add-Content .\Readme.md "Title: Insert Document Title Here
+    >> Date: x/x/202x
+    >> Author: MTanaka
+    >> Version: 0.1 (Draft)"  
+      
+    PS C:\Users\MTanaka\Documents\SOPs> cat .\Readme.md
+    Title: Insert Document Title Here
+    Date: x/x/202x
+    Author: MTanaka
+    Version: 0.1 (Draft)
+    
+
+We would then perform this same process we did for `Readme.md` in every other file we created for Mr. Tanaka. This scenario felt a bit tedious, right? Creating files over and over by hand can get tiresome. This is where automation and scripting come into place. It is a bit out of reach right now, but in a later section in this module, we will discuss how to make a quick PowerShell Module, using variables and writing scripts to make things easier.
+
+**Scenario Cont.: Mr. Tanaka has asked us to change the name of the file \`Cyber-Sec-draft.md\` to \`Infosec-SOP-draft.md\`.**
+
+We can quickly knock this task out using the `Rename-Item` cmdlet. Lets' give it a try:
+
+#### Renaming An Object
+
+Working with Files and Directories - PowerShell
+
+    PS C:\Users\MTanaka\Documents\SOPs\Cyber Sec> ls
+    
+        Directory: C:\Users\MTanaka\Documents\SOPs\Cyber Sec
+    
+    Mode                 LastWriteTime         Length Name
+    ----                 -------------         ------ ----
+    -a----        11/10/2022   9:14 AM              0 Cyber-Sec-draft.md
+    
+    PS C:\Users\MTanaka\Documents\SOPs\Cyber Sec> Rename-Item .\Cyber-Sec-draft.md -NewName Infosec-SOP-draft.md
+    PS C:\Users\MTanaka\Documents\SOPs\Cyber Sec> ls
+    
+        Directory: C:\Users\MTanaka\Documents\SOPs\Cyber Sec
+    
+    Mode                 LastWriteTime         Length Name
+    ----                 -------------         ------ ----
+    -a----        11/10/2022   9:14 AM              0 Infosec-SOP-draft.md
+    
+
+All we needed to do above was issue the `Rename-Item` cmdlet, give it the original filename we want to change (`Cyber-Sec-draft.md`), and then tell it our new name with the `-NewName` (`Infosec-SOP-draft.md`) parameter. Seems simple right? We could take this further and rename all files within a directory or change the file type or several different actions. In our example below, we will change the names of all text files in Mr. Tanakas Desktop from `file.txt` to `file.md`.
+
+#### Files1-5.txt are on MTanaka's Desktop
+
+Working with Files and Directories - PowerShell
+
+    PS C:\Users\MTanaka\Desktop> ls
+    
+        Directory: C:\Users\MTanaka\Desktop
+    
+    Mode                 LastWriteTime         Length Name
+    ----                 -------------         ------ ----
+    -a----        10/13/2022   1:05 PM              0 file-1.txt
+    -a----        10/13/2022   1:05 PM              0 file-2.txt
+    -a----        10/13/2022   1:06 PM              0 file-3.txt
+    -a----        10/13/2022   1:06 PM              0 file-4.txt
+    -a----        10/13/2022   1:06 PM              0 file-5.txt
+    
+    PS C:\Users\MTanaka\Desktop> get-childitem -Path *.txt | rename-item -NewName {$_.name -replace ".txt",".md"}
+    PS C:\Users\MTanaka\Desktop> ls
+    
+        Directory: C:\Users\MTanaka\Desktop
+    
+    Mode                 LastWriteTime         Length Name
+    ----                 -------------         ------ ----
+    -a----        10/13/2022   1:05 PM              0 file-1.md
+    -a----        10/13/2022   1:05 PM              0 file-2.md
+    -a----        10/13/2022   1:06 PM              0 file-3.md
+    -a----        10/13/2022   1:06 PM              0 file-4.md
+    -a----        10/13/2022   1:06 PM              0 file-5.md
+    
+
+As we can see above, we had five text files on the Desktop. We changed them to `.md` files using `get-childitem -Path *.txt` to select the objects and used `|` to send those objects to the `rename-item -NewName {$_.name -replace ".txt",".md"}` cmdlet which renames everything from its original name ($\_.name) and replaces the `.txt` from name to `.md`. This is a much faster way to interact with files and perform bulk actions. Now that we have completed all of Mr. Tanakas' requests, let us discuss File and Directory permissions for a second.
+
+* * *
+
+What are File & Directory Permissions
+-------------------------------------
+
+Permissions, simplified, are our host's way of determining who has access to a specific object and what they can do with it. These permissions allow us to apply granular security control over our objects to maintain a proper security posture. In environments like large organizations with multiple departments (like HR, IT, Sales, etc.), want to ensure they keep information access on a "need to know" basis. This ensures that an outsider cannot corrupt or misuse the data. The Windows file system has many basic and advanced permissions. Some of the key permission types are:
+
+#### Permission Types Explained
+
+*   `Full Control`: Full Control allows for the user or group specified the ability to interact with the file as they see fit. This includes everything below, changing the permissions, and taking ownership of the file.
+*   `Modify`: Allows reading, writing, and deleting files and folders.
+*   `List Folder Contents`: This makes viewing and listing folders and subfolders possible along with executing files. This only applies to `folders`.
+*   `Read and Execute`: Allows users to view the contents within files and run executables (.ps1, .exe, .bat, etc.)
+*   `Write`: Write allows a user the ability to create new files and subfolders along with being able to add content to files.
+*   `Read`: Allows for viewing and listing folders and subfolders and viewing a file's contents.
+*   `Traverse Folder`: Traverse allows us to give a user the ability to access files or subfolders within a tree but not have access to the higher-level folder's contents. This is a way to provide selective access from a security perspective.
+
+Windows ( NTFS, in general ) allows us to set permissions on a parent directory and have those permissions populate each file and folder located within that directory. This saves us a ton of time compared to manually setting the permissions on each object contained within. This inheritance can be disabled as necessary for specific files, folders, and sub-folders. If done, we will have to set the permissions we want on the affected files manually. Working with permissions can be a complex task and a bit much to do just from the CLI, so we will leave playing with permissions to the `Windows Fundamentals Module`.
+
+* * *
+
+Finding & Filtering Content
+===========================
+
+* * *
+
+Being able to search for, find, and filter content for what we are looking for is an absolute requirement for any user who utilizes the CLI ( regardless of what shell or OS ). Nevertheless, how do we do this in PowerShell? To answer this question, this section will dive into specifics of how PowerShell utilizes `Objects`, how we can `filter` based on `Properties` and `content`, and describe components like the PowerShell `Pipeline` further.
+
+* * *
+
+Explanation of PowerShell Output (Objects Explained)
+----------------------------------------------------
+
+With PowerShell, not everything is generic text strings like in Bash or cmd. In PowerShell, everything is an `Object`. However, what is an object? Let us examine this concept further:
+
+`What is an Object?` An `object` is an `individual` instance of a `class` within PowerShell. Let us use the example of a computer as our object. The total of everything (parts, time, design, software, etc.) makes a computer a computer.
+
+`What is a Class?` A class is the `schema` or 'unique representation of a thing (object) and how the sum of its `properties` define it. The `blueprint` used to lay out how that computer should be assembled and what everything within it can be considered a Class.
+
+`What are Properties?` Properties are simply the `data` associated with an object in PowerShell. For our example of a computer, the individual `parts` that we assemble to make the computer are its properties. Each part serves a purpose and has a unique use within the object.
+
+`What are Methods?` Simply put, methods are all the functions our object has. Our computer allows us to process data, surf the internet, learn new skills, etc. All of these are the methods for our object.
+
+Now, we defined these terms so that we understand all the different properties we will be looking at later and what methods of interaction we have with objects. By understanding how PowerShell interprets objects and utilizes Classes, we can define our own object types. Moving on, we will look at how we can filter and find objects through the PowerShell CLI.
+
+### Finding and Filtering Objects
+
+Let us look at this through a `user object` context. A user can do things like access files, run applications, and input/output data. But what is a user? What is it made up of?
+
+#### Get an Object (User) and its Properties/Methods
+
+Finding & Filtering Content
+
+    PS C:\htb> Get-LocalUser administrator | get-member
+    
+       TypeName: Microsoft.PowerShell.Commands.LocalUser
+    
+    Name                   MemberType Definition
+    ----                   ---------- ----------
+    Clone                  Method     Microsoft.PowerShell.Commands.LocalUser Clone()
+    Equals                 Method     bool Equals(System.Object obj)
+    GetHashCode            Method     int GetHashCode()
+    GetType                Method     type GetType()
+    ToString               Method     string ToString()
+    AccountExpires         Property   System.Nullable[datetime] AccountExpires {get;set;}
+    Description            Property   string Description {get;set;}
+    Enabled                Property   bool Enabled {get;set;}
+    FullName               Property   string FullName {get;set;}
+    LastLogon              Property   System.Nullable[datetime] LastLogon {get;set;}
+    Name                   Property   string Name {get;set;}
+    ObjectClass            Property   string ObjectClass {get;set;}
+    PasswordChangeableDate Property   System.Nullable[datetime] PasswordChangeableDate {get;set;}
+    PasswordExpires        Property   System.Nullable[datetime] PasswordExpires {get;set;}
+    PasswordLastSet        Property   System.Nullable[datetime] PasswordLastSet {get;set;}
+    PasswordRequired       Property   bool PasswordRequired {get;set;}
+    PrincipalSource        Property   System.Nullable[Microsoft.PowerShell.Commands.PrincipalSource] PrincipalSource {ge...
+    SID                    Property   System.Security.Principal.SecurityIdentifier SID {get;set;}
+    UserMayChangePassword  Property   bool UserMayChangePassword {get;set;}
+    
+
+Now that we can see all of a user's properties let us look at what those properties look like when output by PowerShell. The [Select-Object](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/select-object?view=powershell-7.2) cmdlet will help us achieve this. In this manner, we now understand what makes up a user object.
+
+#### Property Output (All)
+
+Finding & Filtering Content
+
+    PS C:\htb> Get-LocalUser administrator | Select-Object -Property *
+    
+    
+    AccountExpires         :
+    Description            : Built-in account for administering the computer/domain
+    Enabled                : False
+    FullName               :
+    PasswordChangeableDate :
+    PasswordExpires        :
+    UserMayChangePassword  : True
+    PasswordRequired       : True
+    PasswordLastSet        :
+    LastLogon              : 1/20/2021 5:39:14 PM
+    Name                   : Administrator
+    SID                    : S-1-5-21-3916821513-3027319641-390562114-500
+    PrincipalSource        : Local
+    ObjectClass            : User
+    
+
+A user is a small object realistically, but it can be a lot to look at the output in this manner, especially from items like large `lists` or `tables`. So what if we wanted to filter this content down or show it to us in a more precise manner? We could filter out the properties of an object we do not want to see by selecting the few we do. Let's look at our users and see which have set a password recently.
+
+#### Filtering on Properties
+
+Finding & Filtering Content
+
+    PS C:\htb> Get-LocalUser * | Select-Object -Property Name,PasswordLastSet
+    
+    Name               PasswordLastSet
+    ----               ---------------
+    Administrator
+    DefaultAccount
+    Guest
+    MTanaka              1/27/2021 2:39:55 PM
+    WDAGUtilityAccount 1/18/2021 7:40:22 AM
+    
+
+We can also `sort` and `group` our objects on these properties.
+
+#### Sorting and Grouping
+
+Finding & Filtering Content
+
+    PS C:\htb> Get-LocalUser * | Sort-Object -Property Name | Group-Object -property Enabled
+    
+    Count Name                      Group
+    ----- ----                      -----
+        4 False                     {Administrator, DefaultAccount, Guest, WDAGUtilityAccount}
+        1 True                      {MTanaka}
+    
+
+We utilized the `Sort-Object` and `Group-Object` cmdlets to find all users, `sort` them by `name`, and then `group` them together based on their `Enabled` property. From the output, we can see that several users are disabled and not in use for interactive logon. This is just a quick example of what can be done with PowerShell objects and the sheer amount of information stored within each object. As we delve deeper into PowerShell and dig around within the Windows OS, we will notice that the classes behind many objects are extensive and often shared. Keep these things in mind as we work with them more and more.
+
+* * *
+
+Why Do We Need to Filter our Results?
+-------------------------------------
+
+We are switching it up and using an example of get-service for this demonstration. Looking at basic users and information does not produce much in the way of results, but other objects contain an extraordinary amount of data. Below is an example of just a fragment from the output of Get-Service:
+
+#### Too Much Output
+
+Finding & Filtering Content
+
+    PS C:\htb> Get-Service | Select-Object -Property *
+    
+    Name                : AarSvc_1ca8ea
+    RequiredServices    : {}
+    CanPauseAndContinue : False
+    CanShutdown         : False
+    CanStop             : False
+    DisplayName         : Agent Activation Runtime_1ca8ea
+    DependentServices   : {}
+    MachineName         : .
+    ServiceName         : AarSvc_1ca8ea
+    ServicesDependedOn  : {}
+    ServiceHandle       :
+    Status              : Stopped
+    ServiceType         : 224
+    StartType           : Manual
+    Site                :
+    Container           :
+    
+    Name                : AdobeARMservice
+    RequiredServices    : {}
+    CanPauseAndContinue : False
+    CanShutdown         : False
+    CanStop             : True
+    DisplayName         : Adobe Acrobat Update Service
+    DependentServices   : {}
+    MachineName         : .
+    ServiceName         : AdobeARMservice
+    ServicesDependedOn  : {}
+    ServiceHandle       :
+    Status              : Running
+    ServiceType         : Win32OwnProcess
+    StartType           : Automatic
+    Site                :
+    Container           :
+    
+    Name                : agent_ovpnconnect
+    RequiredServices    : {}
+    CanPauseAndContinue : False
+    CanShutdown         : False
+    CanStop             : True
+    DisplayName         : OpenVPN Agent agent_ovpnconnect
+    DependentServices   : {}
+    MachineName         : .
+    ServiceName         : agent_ovpnconnect
+    ServicesDependedOn  : {}
+    ServiceHandle       :
+    Status              : Running
+    ServiceType         : Win32OwnProcess
+    StartType           : Automatic
+    Site                :
+    Container           :
+    
+    <SNIP>
+    
+
+This is way too much data to sift through, right? Let us break it down further and format this data as a list. We can use the command string `get-service | Select-Object -Property DisplayName,Name,Status | Sort-Object DisplayName | fl` to change our output like so:
+
+Finding & Filtering Content
+
+    PS C:\htb> get-service | Select-Object -Property DisplayName,Name,Status | Sort-Object DisplayName | fl 
+    
+    <SNIP>
+    DisplayName : ActiveX Installer (AxInstSV)
+    Name        : AxInstSV
+    Status      : Stopped
+    
+    DisplayName : Adobe Acrobat Update Service
+    Name        : AdobeARMservice
+    Status      : Running
+    
+    DisplayName : Adobe Genuine Monitor Service
+    Name        : AGMService
+    Status      : Running
+    <SNIP>
+    
+
+This is still a ton of output, but it is a bit more readable. Here is where we start asking ourselves questions like do we need all of this output? Do we care about all of these objects or just a specific subset of them? What if we wanted to determine if a specific service was running, but we needed to figure out the specific Name? The [Where-Object](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/where-object?view=powershell-7.2) can evaluate objects passed to it and their specific property values to look for the information we require. Consider this `scenario`:
+
+**Scenario: We have just landed an initial shell on a host via an unsecured protocol exposing the host to the world. Before we get any further in, we need to assess the host and determine if any defensive services or applications are running. First, we look for any instance of \`Windows Defender\` services running.**
+
+Using `Where-Object` (`where` as an alias) and the parameter matching with `-like` will allow us to determine if we are safe to continue by looking for anything with "`Defender`" in the property. In this instance, we check the `DisplayName` property of all objects retrieved by `Get-Service`.
+
+#### Hunting for Windows Defender
+
+Finding & Filtering Content
+
+    PS C:\htb>  Get-Service | where DisplayName -like '*Defender*'
+    
+    Status   Name               DisplayName
+    ------   ----               -----------
+    Running  mpssvc             Windows Defender Firewall
+    Stopped  Sense              Windows Defender Advanced Threat Pr...
+    Running  WdNisSvc           Microsoft Defender Antivirus Networ...
+    Running  WinDefend          Microsoft Defender Antivirus Service
+    
+
+As we can see, our results returned `several services running`, including Defender Firewall, Advanced Threat Protection, and more. This is both good news and bad news for us. We cannot just dive in and start doing things because we are likely to be spotted by the defensive services, but it is good that we spotted them and can now regroup and make a plan for defensive evasion actions to be taken. Although a quick example scenario, this is something as pentesters that we will often run into, and we should be able to spot and identify when defensive measures are in place. This example brings up an interesting way to modify our searches, however. Evaluation values can be beneficial to our cause. Let us check them out more.
+
+### The Evaluation of Values
+
+`Where` and many other cmdlets can `evaluate` objects and data based on the values those objects and their properties contain. The output above is an excellent example of this utilizing the `-like` Comparison operator. It will look for anything that matches the values expressed and can include wildcards such as `*`. Below is a quick list (not all-encompassing) of other useful expressions we can utilize:
+
+#### Comparison Operators
+
+**Expression**
+
+**Description**
+
+`Like`
+
+Like utilizes wildcard expressions to perform matching. For example, `'*Defender*'` would match anything with the word Defender somewhere in the value.
+
+`Contains`
+
+Contains will get the object if any item in the property value matches exactly as specified.
+
+`Equal` to
+
+Specifies an exact match (case sensitive) to the property value supplied.
+
+`Match`
+
+Is a regular expression match to the value supplied.
+
+`Not`
+
+specifies a match if the property is `blank` or does not exist. It will also match `$False`.
+
+Of course, there are many other [comparison operators](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_comparison_operators?view=powershell-7.2) we can use like, greater than, less than, and negatives like NotEqual, but in this kind of searching they may not be as widely used. Now with a `-GTE` understanding of how these operators can help us more than before (see what I did there), let us get back to digging into Defender services. Now we will look for service objects with a `DisplayName` again, like < something>Defender< something>.
+
+#### Defender Specifics
+
+Finding & Filtering Content
+
+    PS C:\htb> Get-Service | where DisplayName -like '*Defender*' | Select-Object -Property *
+    
+    Name                : mpssvc
+    RequiredServices    : {mpsdrv, bfe}
+    CanPauseAndContinue : False
+    CanShutdown         : False
+    CanStop             : False
+    DisplayName         : Windows Defender Firewall
+    DependentServices   :
+    MachineName         : .
+    ServiceName         : mpssvc
+    ServicesDependedOn  : {mpsdrv, bfe}
+    ServiceHandle       :
+    Status              : Running
+    ServiceType         : Win32ShareProcess
+    StartType           : Automatic
+    Site                :
+    Container           :
+    
+    Name                : Sense
+    RequiredServices    : {}
+    CanPauseAndContinue : False
+    CanShutdown         : False
+    CanStop             : False
+    DisplayName         : Windows Defender Advanced Threat Protection Service
+    <SNIP>
+    
+
+Our results above now filter out every service associated with `Windows Defender` and displays the complete properties list of each match. Now we can look at the services, determine if they are running, and even if we can, at our current permission level, affect the status of those services (turn them off, disable them, etc.). During many of the commands we have issued in the last few sections, we have used the `|` symbol to concatenate multiple commands we would usually issue separately. Below we will discuss what this is and how it works for us.
+
+* * *
+
+What is the PowerShell Pipeline? ( | )
+--------------------------------------
+
+In its simplest form, the [Pipeline](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_pipelines?view=powershell-7.2) in PowerShell provides the end user a way to chain commands together. This chain is called a Pipeline and is also referred to as a pipe or piping commands together. With PowerShell handling objects the way it does, we can issue a command and then pipe (`|`) the resultant object output to another command for action. The Pipeline will interpret and execute the commands one at a time from left to right. We have done this in a few examples in the previous sections, so we are diving deeper into it here. As an example using the Pipeline to string commands together can look like this:
+
+#### Piping Commands
+
+Finding & Filtering Content
+
+    PS C:\htb> Command-1 | Command-2 | Command-3
+    
+    Output from the result of 1+2+3  
+    
+
+`OR`
+
+Finding & Filtering Content
+
+    PS C:\htb> 
+    Command-1 |
+      Command-2 |
+        Command-3  
+    
+    Output result from Pipeline
+    
+
+`OR`
+
+Finding & Filtering Content
+
+    PS C:\htb> Get-Process | Where-Object CPU | Where-Object Path |
+         Get-Item   
+    
+    Output result from Pipeline  
+    
+
+Each way is a perfectly acceptable way to concatenate the commands together. PowerShell can interpret what you want based on the position of the (`|`) in the string. Let us see an example of using the pipeline to provide us with actionable data. Below we will issue the `Get-Process` cmdlet, `sort` the resultant data, and then measure how many `unique` processes we have running on our host.
+
+#### Using the Pipeline to Count Unique Instances
+
+Finding & Filtering Content
+
+    PS C:\htb> get-process | sort | unique | measure-object
+    
+    Count             : 113  
+    
+
+As a result, the pipeline output the total count (`113`) of unique processes running at that time. Suppose we break the pipeline down at any particular point. In that case, we may see the process output sorted, filtered for unique instances (no duplicate names), or just a number output from the `Measure-Object` cmdlet. The task we performed was relatively simple. However, what if we could harness this for something more complex, like sorting new log entries, filtering for specific event log codes, or processing large amounts of data (a database and all its entries, for example) looking for specific strings? This is where Pipeline can increase our productivity and streamline the output we receive, making it a vital tool for any sysadmin or pentester.
+
+### Pipeline Chain Operators ( `&&` and `||` )
+
+_Currently, Windows PowerShell 5.1 and older do not support Pipeline Chain Operators used in this fashion. If you see errors, you must install PowerShell 7 alongside Windows PowerShell. They are not the same thing._
+
+You can find a great example of installing PowerShell 7 [here](https://www.thomasmaurer.ch/2019/07/how-to-install-and-update-powershell-7/) so that you can use many of the new and updated features. PowerShell allows us to have conditional execution of pipelines with the use of `Chain operators`. These operators ( `&&` and `||` ) serve two main functions:
+
+*   `&&`: Sets a condition in which PowerShell will execute the next command inline `if` the current command `completes properly`.
+    
+*   `||`: Sets a condition in which PowerShell will execute the following command inline `if` the current command `fails`.
+    
+
+These operators can be useful in helping us set conditions for scripts that execute if a goal or condition is met. For example:
+
+**Scenario:** Let's say we write a command chain where we want to get the content within a file and then ping a host. We can set this to ping the host if the initial command succeeds with `&&` or to run only if the command fails `||`. Let's see both.
+
+In this output, we can see that both commands were `successful` in execution because we get the output of the file `test.txt` printed to the console along with the results of our `ping` command.
+
+#### Successful Pipeline
+
+Finding & Filtering Content
+
+    PS C:\htb> Get-Content '.\test.txt' && ping 8.8.8.8
+    pass or fail
+    
+    Pinging 8.8.8.8 with 32 bytes of data:
+    Reply from 8.8.8.8: bytes=32 time=23ms TTL=118
+    Reply from 8.8.8.8: bytes=32 time=28ms TTL=118
+    Reply from 8.8.8.8: bytes=32 time=28ms TTL=118
+    Reply from 8.8.8.8: bytes=32 time=21ms TTL=118
+    
+    Ping statistics for 8.8.8.8:
+        Packets: Sent = 4, Received = 4, Lost = 0 (0% loss),
+    Approximate round trip times in milli-seconds:
+        Minimum = 21ms, Maximum = 28ms, Average = 25ms
+    
+
+With this output, we can see that our pipeline `closed` itself after the `first` command since it executed adequately, printing the output of the file to the console.
+
+#### Stop Unless Failure
+
+Finding & Filtering Content
+
+    PS C:\htb>  Get-Content '.\test.txt' || ping 8.8.8.8
+    
+    pass or fail
+    
+
+Here we can see that our pipeline executed `completely`. Our first command `failed` because the filename was typed wrong, and PowerShell sees this as the file we requested does not exist. Since the first command failed, our second command was executed.
+
+#### Success in Failure
+
+Finding & Filtering Content
+
+    PS C:\htb> Get-Content '.\testss.txt' || ping 8.8.8.8
+    
+    Get-Content: Cannot find path 'C:\Users\MTanaka\Desktop\testss.txt' because it does not exist.
+    
+    Pinging 8.8.8.8 with 32 bytes of data:
+    Reply from 8.8.8.8: bytes=32 time=20ms TTL=118
+    Reply from 8.8.8.8: bytes=32 time=37ms TTL=118
+    Reply from 8.8.8.8: bytes=32 time=19ms TTL=118
+    
+    <SNIP>
+    
+
+The `pipeline` and `operators` that we used are beneficial to us from a time-saving perspective, as well as being able to quickly feed objects and data from one task to another. Issuing multiple commands in line is much more effective than manually issuing each command. What if we wanted to search for `strings` or `data` within the contents of files and directories? This is a common task many pentesters will perform while enumerating a host that they have gained access to. Searching with what is natively on the host is a great way to maintain our stealth and ensure we are not introducing new risks by bringing tools into the user environment.
+
+* * *
+
+Finding Data within Content
+---------------------------
+
+Some tools exist, like `Snaffler`, `Winpeas`, and the like, that can search for interesting files and strings, but what if we `cannot` bring a new tool onto the host? How can we hunt for sensitive info like credentials, keys, etc.? Combining cmdlets we have practiced in previous sections paired with new cmdlets like `Select-String` and `where` is an excellent way for us to root through a filesystem.
+
+[Select-String](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/select-string?view=powershell-7.2) (`sls` as an alias) for those more familiar with using the Linux CLI, functions much in the same manner as `Grep` does or `findstr.exe` within the Windows Command-Prompt. It performs evaluations of input strings, file contents, and more based on regular expression (`regex`) pattern matching. When a match is found, `Select-String` will output the matching `line`, the `name` of the file, and the `line number` on which it was found by default. Overall it is a flexible and helpful cmdlet that should be in everyone's toolbox. Below we will take our new cmdlet for a test drive as we look for information within some interesting files and directories that should be paid attention to when enumerating a host.
+
+### Find Interesting Files Within a Directory
+
+When looking for interesting files, think about the most common file types we would use daily and start there. On a given day, we may write text files, a bit of Markdown, some Python, PowerShell, and many others. We want to look for those things when hunting through a host since it is where users and admins will interact most. We can start with `Get-ChildItem` and perform a recursive search through a folder. Let us test it out.
+
+#### Beginning the Hunt
+
+Finding & Filtering Content
+
+    PS C:\htb> Get-ChildItem -Path C:\Users\MTanaka\ -File -Recurse 
+    
+     Directory: C:\Users\MTanaka\Desktop\notedump\NoteDump
+    
+    Mode                 LastWriteTime         Length Name
+    ----                 -------------         ------ ----
+    -a---           4/26/2022  1:47 PM           1092 demo notes.md
+    -a---           4/22/2022  2:20 PM           1074 noteDump.py
+    -a---           4/22/2022  2:55 PM          61440 plum.sqlite
+    -a---           4/22/2022  2:20 PM            375 README.md
+    <SNIP>
+    
+
+We will notice that it quickly returns way too much information. Every file in every folder in the path specified was output to our console. We need to trim this down a bit. Let us use the condition of looking at the `name` for specific `filetype extensions`. To do so, we will pipe the output of Get-ChildItem through the `where` cmdlet to filter down our output. Let's test first by searching for the `*.txt` filetype extension.
+
+#### Narrowing Our Search
+
+Finding & Filtering Content
+
+    PS C:\htb> Get-Childitem –Path C:\Users\MTanaka\ -File -Recurse -ErrorAction SilentlyContinue | where {($_.Name -like "*.txt")}
+    
+    Directory: C:\Users\MTanaka\Desktop
+    
+    Mode                 LastWriteTime         Length Name
+    ----                 -------------         ------ ----
+    -a---          10/11/2022  3:32 PM            183 demo-notes.txt
+    -a---            4/4/2022  9:37 AM            188 q2-to-do.txt
+    -a---          10/12/2022 11:26 AM             14 test.txt
+    -a---            1/4/2022 11:23 PM            310 Untitled-1.txt
+    
+        Directory: C:\Users\MTanaka\Desktop\win-stuff
+    
+    Mode                 LastWriteTime         Length Name
+    ----                 -------------         ------ ----
+    -a---           5/19/2021 10:12 PM           7831 wmic.txt
+    
+        Directory: C:\Users\MTanaka\Desktop\Workshop\
+    
+    Mode                 LastWriteTime         Length Name
+    ----                 -------------         ------ ----
+    -----            1/7/2022  4:39 PM            945 info.txt
+    
+
+This worked much more efficiently. We only returned the files that matched the file type `txt` because of our filter's `$_.Name` attribute. Now that we know it works, we can add the rest of the file types we will look for using an `-or` statement within the where filter.
+
+#### Using `Or` To Expand our Treasure Hunt
+
+Finding & Filtering Content
+
+    PS C:\htb> Get-Childitem –Path C:\Users\MTanaka\ -File -Recurse -ErrorAction SilentlyContinue | where {($_.Name -like "*.txt" -or $_.Name -like "*.py" -or $_.Name -like "*.ps1" -or $_.Name -like "*.md" -or $_.Name -like "*.csv")}
+    
+     Directory: C:\Users\MTanaka\Desktop
+    
+    Mode                 LastWriteTime         Length Name
+    ----                 -------------         ------ ----
+    -a---          10/11/2022  3:32 PM            183 demo-notes.txt
+    -a---          10/11/2022 10:22 AM           1286 github-creds.txt
+    -a---            4/4/2022  9:37 AM            188 q2-to-do.txt
+    -a---           9/18/2022 12:35 PM             30 notes.txt
+    -a---          10/12/2022 11:26 AM             14 test.txt
+    -a---           2/14/2022  3:40 PM           3824 remote-connect.ps1
+    -a---          10/11/2022  8:22 PM            874 treats.ps1
+    -a---            1/4/2022 11:23 PM            310 Untitled-1.txt
+    
+        Directory: C:\Users\MTanaka\Desktop\notedump\NoteDump
+    
+    Mode                 LastWriteTime         Length Name
+    ----                 -------------         ------ ----
+    -a---           4/26/2022  1:47 PM           1092 demo.md
+    -a---           4/22/2022  2:20 PM           1074 noteDump.py
+    -a---           4/22/2022  2:20 PM            375 README.md
+    
+
+Our string worked, and we are now retrieving `multiple filetypes` from Get-ChildItem! Now that we have our list of interesting files, we could turn around and `pipe` those objects into another cmdlet (`Select-String`) that searches through their content for interesting strings and keywords or phrases. Let us see this in action.
+
+#### Basic Search Query
+
+Finding & Filtering Content
+
+    PS C:\htb> Get-ChildItem -Path C:\Users\MTanaka\ -Filter "*.txt" -Recurse -File | sls "Password","credential","key"
+    
+    CFP-Notes.txt:99:Lazzaro, N. (2004). Why we play games: Four keys to more emotion without story. Retrieved from:
+    notes.txt:3:- Password: F@ll2022!
+    wmic.txt:67:  wmic netlogin get name,badpasswordcount
+    wmic.txt:69:Are the screensavers password protected? What is the timeout? good use: see that all systems are
+    complying with policy evil use: find systems to walk up and use (assuming physical access is an option)
+    
+
+Keep in mind, Select-string is `not` case sensitive by default. If we wish for it to be, we can feed it the -CaseSensitive modifier. Now we will combine our original file search with our content filter.
+
+#### Combining the Searches
+
+Finding & Filtering Content
+
+    PS C:\htb> Get-Childitem –Path C:\Users\MTanaka\ -File -Recurse -ErrorAction SilentlyContinue | where {($_. Name -like "*.txt" -or $_. Name -like "*.py" -or $_. Name -like "*.ps1" -or $_. Name -like "*.md" -or $_. Name -like "*.csv")} | sls "Password","credential","key","UserName"
+    
+    New-PC-Setup.md:56:  - getting your vpn key
+    CFP-Notes.txt:99:Lazzaro, N. (2004). Why we play games: Four keys to more emotion without story. Retrieved from:
+    notes.txt:3:- Password: F@ll2022!
+    wmic.txt:54:  wmic computersystem get username
+    wmic.txt:67:  wmic netlogin get name,badpasswordcount
+    wmic.txt:69:Are the screensavers password protected? What is the timeout? good use: see that all systems are
+    complying with policy evil use: find systems to walk up and use (assuming physical access is an option)
+    wmic.txt:83:  wmic netuse get Name,username,connectiontype,localname
+    
+
+Our commands in the pipeline are getting longer, but we can easily clean up our view to make it readable. Looking at our results, though, it was a much smoother process to feed our file list results into our keyword search. Notice that there are a few `new` additions in our command string. We added a line to have the command continue if an error occurs (`-ErrorAction SilentlyContinue`). This helps us to ensure that our entire pipeline stays intact when it happens along a file or directory it cannot read. Finding and filtering content can be an interesting puzzle in and of itself. Determining what words and strings will produce the best results is an ever-evolving task and will often vary based on the customer.
+
+### Helpful Directories to Check
+
+While looking for valuable files and other content, we can check many more valuable files in many different places. The list below contains just a few tips and tricks that can be used in our search for loot.
+
+*   Looking in a Users `\AppData\` folder is a great place to start. Many applications store `configuration files`, `temp saves` of documents, and more.
+*   A Users home folder `C:\Users\User\` is a common storage place; things like VPN keys, SSH keys, and more are stored. Typically in `hidden` folders. (`Get-ChildItem -Hidden`)
+*   The Console History files kept by the host are an endless well of information, especially if you land on an administrator's host. You can check two different points:
+    *   `C:\Users\<USERNAME>\AppData\Roaming\Microsoft\Windows\Powershell\PSReadline\ConsoleHost_history.txt`
+    *   `Get-Content (Get-PSReadlineOption).HistorySavePath`
+*   Checking a user's clipboard may also yield useful information. You can do so with `Get-Clipboard`
+*   Looking at Scheduled tasks can be helpful as well.
+
+These are just a few interesting places to check. Use it as a starting point to build and maintain your own checklist as your skill and experiences grow.
